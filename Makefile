@@ -1,4 +1,4 @@
-.PHONY: relay agent install uninstall logs build-relay build-agent help
+.PHONY: relay agent install uninstall logs build-relay build-agent build dist release help
 
 # ── Development ──────────────────────────────────────────────────────────────
 
@@ -53,6 +53,14 @@ build: build-relay build-agent
 dist:
 	@./scripts/build-dist.sh
 
+## Tag and push a release (triggers GitHub Actions to build binaries)
+## Usage: make release VERSION=v1.2.3
+release:
+	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=v1.2.3" && exit 1)
+	@git tag "$(VERSION)"
+	@git push origin "$(VERSION)"
+	@echo "✅ Tag $(VERSION) pushed — GitHub Actions will build binaries"
+
 # ── Help ─────────────────────────────────────────────────────────────────────
 
 help:
@@ -67,4 +75,5 @@ help:
 	@echo "  make status     Show service status"
 	@echo "  make build      Build both binaries"
 	@echo "  make dist       Build ClaudeAgent.app → dist/ClaudeAgent.zip"
+	@echo "  make release VERSION=v1.0.0  Tag + push → triggers CI build"
 	@echo ""
