@@ -1,0 +1,168 @@
+#!/bin/bash
+# Claude Agent — macOS App Bundle Launcher
+# Double-click to install / manage the agent daemon.
+
+RESOURCES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+BINARY="$RESOURCES/claude-agent"
+CONFIG="$HOME/.config/claude-agent/config.yaml"
+PLIST="$HOME/Library/LaunchAgents/com.claude.agent.plist"
+LOG="$HOME/Library/Logs/claude-agent.log"
+LABEL="com.claude.agent"
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+dialog() {
+    osascript -e "display dialog \"$1\" buttons {\"OK\"} default button \"OK\" \
+        with title \"Claude Agent\"" 2>/dev/null
+}
+
+ask() {   # ask <prompt> <default> → stdout
+    osascript -e "text returned of (display dialog \"$1\" \
+        default answer \"$2\" with title \"Claude Agent\")" 2>/dev/null
+}
+
+confirm() {   # confirm <prompt> → 0=yes 1=no
+    local btn
+    btn=$(osascript -e "button returned of (display dialog \"$1\" \
+        buttons {\"Cancel\", \"OK\"} default button \"OK\" \
+        with title \"Claude Agent\")" 2>/dev/null)
+    [ "$btn" = "OK" ]
+}
+
+is_running() {
+    launchctl list | grep -q "$LABEL"
+}
+
+agent_status() {
+    if is_running; then
+        local pid
+        pid=$(launchctl list | awk -F'\t' "/$LABEL/{print \$1}")
+        if [ -n "$pid" ] && [ "$pid" != "-" ]; then
+            echo "● Running (PID $pid)"
+        else
+            echo "● Running"
+        fi
+    else
+        echo "○ Stopped"
+    fi
+}
+
+chmod +x "$BINARY" 2>/dev/null
+
+# ── First-time setup ─────────────────────────────────────────────────────────
+
+if [ ! -f "$CONFIG" ]; then
+    dialog "Welcome to Claude Agent!\n\nThis app lets you control this Mac from your iPhone using Claude Code CLI.\n\nClick OK to configure."
+
+    relay_url=$(ask "Relay server URL:\n(e.g. wss://your-relay.up.railway.app)" "wss://")
+    [ -z "$relay_url" ] && exit 0
+
+    agent_secret=$(ask "Agent Secret:\n(must match AGENT_SECRET on your relay server)" "")
+    [ -z "$agent_secret" ] && exit 0
+
+    agent_name=$(ask "Agent name (shown in the iOS app):" "$(hostname -s)")
+    [ -z "$agent_name" ] && exit 0
+
+    # Write config
+    mkdir -p "$(dirname "$CONFIG")"
+    agent_id=$(uuidgen | tr '[:upper:]' '[:lower:]')
+    cat > "$CONFIG" <<YAML
+agent_id: $agent_id
+name: $agent_name
+secret: $agent_secret
+relay_url: $relay_url
+default_command: bash
+YAML
+
+    dialog "✅ Config saved!\n\nNow installing as a background service…"
+fi
+
+# ── Install / start service ───────────────────────────────────────────────────
+
+if [ ! -f "$PLIST" ]; then
+    mkdir -p "$(dirname "$LOG")"
+    mkdir -p "$(dirname "$PLIST")"
+
+    cat > "$PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>              <string>${LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${BINARY}</string>
+        <string>--config</string>
+        <string>${CONFIG}</string>
+    </array>
+    <key>RunAtLoad</key>          <true/>
+    <key>KeepAlive</key>          <true/>
+    <key>ThrottleInterval</key>   <integer>10</integer>
+    <key>StandardOutPath</key>    <string>${LOG}</string>
+    <key>StandardErrorPath</key>  <string>${LOG}</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>   <string>${HOME}</string>
+        <key>TERM</key>   <string>xterm-256color</string>
+        <key>LANG</key>   <string>en_US.UTF-8</string>
+        <key>PATH</key>   <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:/opt/homebrew/sbin</string>
+    </dict>
+</dict>
+</plist>
+PLIST
+fi
+
+# Load if not running
+if ! is_running; then
+    launchctl unload "$PLIST" 2>/dev/null || true
+    launchctl load "$PLIST"
+    sleep 1
+fi
+
+# ── Status menu ───────────────────────────────────────────────────────────────
+
+STATUS=$(agent_status)
+RELAY=$(grep "relay_url:" "$CONFIG" 2>/dev/null | awk '{print $2}')
+NAME=$(grep "^name:" "$CONFIG" 2>/dev/null | awk '{print $2}')
+
+choice=$(osascript 2>/dev/null <<APPLESCRIPT
+set opts to {"Stop", "Restart", "Show Logs", "Reconfigure", "Uninstall", "OK"}
+set result to button returned of (display dialog \
+    "Claude Agent\n\nStatus: $STATUS\nAgent: $NAME\nRelay: $RELAY\n\nLogs: ~/Library/Logs/claude-agent.log" \
+    buttons opts default button "OK" with title "Claude Agent")
+return result
+APPLESCRIPT
+)
+
+case "$choice" in
+    "Stop")
+        launchctl unload "$PLIST" 2>/dev/null || true
+        dialog "Agent stopped.\n\nDouble-click Claude Agent again to restart."
+        ;;
+    "Restart")
+        launchctl unload "$PLIST" 2>/dev/null || true
+        sleep 1
+        launchctl load "$PLIST"
+        sleep 1
+        dialog "Agent restarted.\n\nStatus: $(agent_status)"
+        ;;
+    "Show Logs")
+        open -a Console "$LOG" 2>/dev/null || open "$LOG"
+        ;;
+    "Reconfigure")
+        if confirm "Delete current config and run setup again?\n\n$CONFIG"; then
+            rm -f "$CONFIG"
+            launchctl unload "$PLIST" 2>/dev/null || true
+            rm -f "$PLIST"
+            open "$RESOURCES/../MacOS/ClaudeAgent"
+        fi
+        ;;
+    "Uninstall")
+        if confirm "Uninstall Claude Agent?\n\nThis will remove the service. Config will be kept at:\n$CONFIG"; then
+            launchctl unload "$PLIST" 2>/dev/null || true
+            rm -f "$PLIST"
+            dialog "Uninstalled.\n\nTo reinstall, double-click Claude Agent again."
+        fi
+        ;;
+esac
