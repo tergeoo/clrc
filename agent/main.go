@@ -70,8 +70,9 @@ func initConfig(path string) error {
 func main() {
 	var (
 		configPath = flag.String("config", defaultConfigPath(), "Path to config file")
-		relay      = flag.String("relay", "", "Relay URL override (e.g. ws://localhost:8080)")
-		name       = flag.String("name", "", "Agent name override")
+		relay      = flag.String("relay", "", "Relay URL (e.g. wss://my-relay.up.railway.app)")
+		secret     = flag.String("secret", "", "Agent secret (must match relay AGENT_SECRET)")
+		name       = flag.String("name", "", "Agent display name (default: hostname)")
 		initFlag   = flag.Bool("init", false, "Initialize config file and exit")
 	)
 	flag.Parse()
@@ -85,14 +86,29 @@ func main() {
 		return
 	}
 
-	cfg, err := loadConfig(*configPath)
-	if err != nil {
-		log.Fatalf("Failed to load config from %s: %v\n\nRun with --init to create a default config.", *configPath, err)
+	// Build config: try file first, fall back to flags-only mode
+	var cfg *Config
+	if loaded, err := loadConfig(*configPath); err == nil {
+		cfg = loaded
+	} else {
+		// No config file — require --relay and --secret flags
+		if *relay == "" || *secret == "" {
+			log.Fatalf("No config file found at %s.\n\nRun with flags:\n  claude-agent --relay wss://YOUR_RELAY --secret YOUR_SECRET [--name MyMac]\n\nOr create a config:\n  claude-agent --init", *configPath)
+		}
+		hostname, _ := os.Hostname()
+		cfg = &Config{
+			AgentID:        uuid.New().String(),
+			Name:           hostname,
+			DefaultCommand: "bash",
+		}
 	}
 
-	// Apply overrides
+	// Apply flag overrides
 	if *relay != "" {
 		cfg.RelayURL = *relay
+	}
+	if *secret != "" {
+		cfg.Secret = *secret
 	}
 	if *name != "" {
 		cfg.Name = *name
