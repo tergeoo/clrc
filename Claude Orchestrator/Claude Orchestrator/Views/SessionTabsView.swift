@@ -57,6 +57,9 @@ struct SessionTabsView: View {
                     .tabItem { Label("Files", systemImage: "folder.fill") }
             }
         }
+        // Prevent the keyboard from shifting the outer layout (top bar, tab bar).
+        // Each tab manages its own keyboard interaction independently.
+        .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $showMachineSelector) {
             MachineSelectorSheet(
                 selectedSessionID: $selectedSessionID,
@@ -203,15 +206,7 @@ struct SessionTabsView: View {
     @ViewBuilder
     private var terminalTab: some View {
         if let session = activeSession {
-            VStack(spacing: 0) {
-                RemoteTerminalView(session: session)
-                    .id(session.id)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                QuickCommandBar { bytes in
-                    relay.sendInput(sessionID: session.id, data: Data(bytes))
-                }
-            }
+            TerminalTabContent(session: session)
         } else {
             noSessionPlaceholder
         }
@@ -534,5 +529,95 @@ private struct SessionRowView: View {
                     .foregroundStyle(.orange)
             }
         }
+    }
+}
+
+// MARK: - TerminalTabContent
+// Manages keyboard overlap so QuickCommandBar stays visible above the keyboard.
+// The outer layout uses .ignoresSafeArea(.keyboard), so this view is responsible
+// for tracking how much the keyboard overlaps its own bounds and compensating.
+
+private struct TerminalTabContent: View {
+    let session: TerminalSession
+    @EnvironmentObject var relay: RelayWebSocket
+
+    @State private var keyboardOverlap: CGFloat = 0
+    @State private var viewMaxY: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: 0) {
+            RemoteTerminalView(session: session)
+                .id(session.id)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Divider()
+
+            HStack(spacing: 0) {
+                QuickCommandBar { bytes in
+                    relay.sendInput(sessionID: session.id, data: Data(bytes))
+                }
+
+                // Keyboard dismiss button — appears only when keyboard is up
+                if keyboardOverlap > 0 {
+                    Divider().frame(height: 32)
+                    Button {
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder),
+                            to: nil, from: nil, for: nil
+                        )
+                    } label: {
+                        Image(systemName: "keyboard.chevron.compact.down")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 48, height: 44)
+                    }
+                }
+            }
+            .background(.bar)
+
+            // Spacer equal to keyboard overlap — pushes the bar above the keyboard
+            Color.clear.frame(height: keyboardOverlap)
+        }
+        // Read our bottom edge in global (screen) coordinates
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: ViewMaxYKey.self,
+                    value: geo.frame(in: .global).maxY
+                )
+            }
+        )
+        .onPreferenceChange(ViewMaxYKey.self) { viewMaxY = $0 }
+        // Track keyboard position and calculate overlap with this view
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillChangeFrameNotification
+            )
+        ) { notif in
+            guard let endFrame = notif.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let duration = notif.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+            let overlap = max(0, viewMaxY - endFrame.minY)
+            withAnimation(.easeOut(duration: duration)) {
+                keyboardOverlap = overlap
+            }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: UIResponder.keyboardWillHideNotification
+            )
+        ) { notif in
+            let duration = notif.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+            withAnimation(.easeOut(duration: duration)) {
+                keyboardOverlap = 0
+            }
+        }
+    }
+}
+
+// PreferenceKey used to bubble the view's bottom edge up from GeometryReader
+private struct ViewMaxYKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
