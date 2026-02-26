@@ -22,6 +22,7 @@ struct AgentListView: View {
                 }
             }
             .navigationTitle("Mac Agents")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
@@ -61,7 +62,10 @@ struct AgentListView: View {
 
     private var agentList: some View {
         List(relay.agents) { agent in
-            AgentRow(agent: agent) {
+            AgentRow(
+                agent: agent,
+                openSessionCount: sessionManager.sessions.filter { $0.agent.id == agent.id }.count
+            ) {
                 connectTapped(agent: agent)
             }
         }
@@ -83,7 +87,7 @@ struct AgentListView: View {
                 .foregroundStyle(.secondary)
             Text("No agents online")
                 .font(.headline)
-            Text("Start the claude-agent daemon on your Mac.")
+            Text("Start the claude-agent daemon on your Mac\nand it will appear here automatically.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -205,6 +209,7 @@ struct SessionPickerView: View {
 
 struct AgentRow: View {
     let agent: Agent
+    let openSessionCount: Int
     let onConnect: () -> Void
 
     var body: some View {
@@ -218,9 +223,17 @@ struct AgentRow: View {
                         Circle()
                             .fill(agent.connected ? Color.green : Color.gray)
                             .frame(width: 8, height: 8)
-                        Text(agent.connected ? "Online — tap to connect" : "Offline")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if agent.connected {
+                            Text(openSessionCount == 0
+                                 ? "Online — tap to connect"
+                                 : "Online · \(openSessionCount) session\(openSessionCount == 1 ? "" : "s") open")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Offline")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Spacer()

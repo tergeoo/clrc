@@ -134,6 +134,7 @@ final class SessionManager: ObservableObject {
     @Published var sessions: [TerminalSession] = []
 
     private let relay: RelayWebSocket
+    private var sessionCounter = 0
 
     init(relay: RelayWebSocket) {
         self.relay = relay
@@ -164,24 +165,69 @@ final class SessionManager: ObservableObject {
     }
 
     func createSession(for agent: Agent, initialCommand: String? = nil) {
-        let session = TerminalSession(agent: agent, initialCommand: initialCommand)
+        sessionCounter += 1
+        let name = autoName(for: initialCommand, index: sessionCounter)
+        let session = TerminalSession(agent: agent, customName: name, initialCommand: initialCommand)
         sessions.append(session)
         relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24)
     }
 
     /// Reattach to an existing PTY session on the agent (session_id is already known).
     func attachSession(agentID: String, sessionID: String, agentName: String) {
-        // Avoid duplicates — if we already have this session open, just switch to it
         guard !sessions.contains(where: { $0.id == sessionID }) else { return }
-        let session = TerminalSession(agentID: agentID, agentName: agentName, sessionID: sessionID)
+        sessionCounter += 1
+        let session = TerminalSession(
+            agentID: agentID,
+            agentName: agentName,
+            sessionID: sessionID,
+            customName: "Session \(sessionCounter)"
+        )
         sessions.append(session)
-        // RemoteTerminalView.makeUIView registers the session handler when the view appears.
-        // sendConnect tells the agent to reattach its PTY's sendFn to this client.
         relay.sendConnect(agentID: agentID, sessionID: sessionID, cols: 80, rows: 24)
     }
 
     func remove(session: TerminalSession) {
         relay.unregisterSessionHandler(sessionID: session.id)
         sessions.removeAll { $0.id == session.id }
+    }
+
+    func closeAll() {
+        for session in sessions {
+            relay.sendDisconnect(sessionID: session.id)
+            relay.unregisterSessionHandler(sessionID: session.id)
+        }
+        sessions.removeAll()
+    }
+
+    // MARK: - Auto-naming
+
+    private func autoName(for command: String?, index: Int) -> String {
+        guard let cmd = command?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cmd.isEmpty else {
+            return "Session \(index)"
+        }
+        let dangerous = cmd.contains("--dangerously-skip-permissions")
+        let warning = dangerous ? " ⚠" : ""
+
+        // "cd ~/path && claude" → extract directory name
+        if let dir = extractLastDir(from: cmd) {
+            return dir + warning
+        }
+        // Generic claude launch
+        if cmd.contains("claude") {
+            return dangerous ? "Claude ⚠" : "Claude \(index)"
+        }
+        return "Session \(index)"
+    }
+
+    private func extractLastDir(from cmd: String) -> String? {
+        // Match: cd "/some/path" && or cd ~/path && (with optional quotes)
+        let pattern = #"cd\s+["']?([^"'&\r\n]+?)["']?\s*&&"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: cmd, range: NSRange(cmd.startIndex..., in: cmd)),
+              let range = Range(match.range(at: 1), in: cmd) else { return nil }
+        let path = String(cmd[range]).trimmingCharacters(in: .whitespaces)
+        let last = (path as NSString).lastPathComponent
+        return last.isEmpty ? nil : last
     }
 }

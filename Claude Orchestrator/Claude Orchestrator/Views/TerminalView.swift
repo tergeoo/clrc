@@ -62,6 +62,15 @@ struct RemoteTerminalView: UIViewRepresentable {
 
         func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
             relay.sendInput(sessionID: session.id, data: Data(data))
+            // Log user input into the activity feed (skip control characters / escape sequences)
+            if let text = String(bytes: data, encoding: .utf8) {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty && !trimmed.unicodeScalars.contains(where: { $0.value < 0x20 }) {
+                    Task { @MainActor in
+                        self.session.logUserInput(trimmed)
+                    }
+                }
+            }
         }
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
             session.lastCols = newCols
