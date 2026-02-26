@@ -14,6 +14,16 @@ struct ActivityFeedView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+            // Tap on empty space dismisses keyboard
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
+                }
+
             if hasContent {
                 feedList
             } else {

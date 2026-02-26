@@ -90,6 +90,14 @@ struct SessionTabsView: View {
                 selectedSessionID = last.id
             }
         }
+        // Dismiss keyboard whenever the user switches away from the Terminal tab.
+        // Without this, SwiftTerm keeps first responder and the keyboard covers the tab bar.
+        .onChange(of: activeTab) { _, _ in
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil, from: nil, for: nil
+            )
+        }
     }
 
     // MARK: - Top bar (44pt)
