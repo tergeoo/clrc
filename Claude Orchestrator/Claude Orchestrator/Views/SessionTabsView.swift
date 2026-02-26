@@ -58,10 +58,19 @@ struct SessionTabsView: View {
             }
         }
         .sheet(isPresented: $showMachineSelector) {
-            machineSelectorSheet
-                .environmentObject(relay)
-                .environmentObject(sessionManager)
-                .environmentObject(authService)
+            MachineSelectorSheet(
+                selectedSessionID: $selectedSessionID,
+                onAddMachine: {
+                    showMachineSelector = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showAddAgent = true
+                    }
+                },
+                onDismiss: { showMachineSelector = false }
+            )
+            .environmentObject(relay)
+            .environmentObject(sessionManager)
+            .environmentObject(authService)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -87,21 +96,24 @@ struct SessionTabsView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            // Machine selector button
-            Button {
-                showMachineSelector = true
-            } label: {
-                HStack(spacing: 5) {
-                    Text(machineName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+            // Session name button — uses ObservedObject wrapper for live updates
+            if let session = activeSession {
+                SessionNameButton(session: session) {
+                    showMachineSelector = true
                 }
+            } else {
+                Button { showMachineSelector = true } label: {
+                    HStack(spacing: 5) {
+                        Text("No Session")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             Spacer()
 
@@ -128,11 +140,6 @@ struct SessionTabsView: View {
         .frame(height: 44)
         .padding(.horizontal, 16)
         .background(.bar)
-    }
-
-    private var machineName: String {
-        guard let session = activeSession else { return "No Machine" }
-        return session.agent.name.components(separatedBy: ".").first ?? session.agent.name
     }
 
     private var connectionColor: Color {
@@ -242,59 +249,93 @@ struct SessionTabsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    // MARK: - Machine selector sheet
+// MARK: - SessionNameButton
+// Separate struct so @ObservedObject tracks customName / claudeState live.
 
-    private var machineSelectorSheet: some View {
+private struct SessionNameButton: View {
+    @ObservedObject var session: TerminalSession
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                // Working indicator dot (orange when Claude is active)
+                if case .working = session.claudeState {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 7, height: 7)
+                }
+                Text(session.customName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - MachineSelectorSheet
+
+private struct MachineSelectorSheet: View {
+    @EnvironmentObject var sessionManager: SessionManager
+    @EnvironmentObject var relay: RelayWebSocket
+
+    @Binding var selectedSessionID: String?
+    let onAddMachine: () -> Void
+    let onDismiss: () -> Void
+
+    @State private var sessionToRename: TerminalSession?
+    @State private var renameDraft = ""
+
+    var body: some View {
         NavigationView {
             List {
-                Section("Active Sessions") {
+                Section {
                     ForEach(sessionManager.sessions) { session in
-                        Button {
+                        SessionRowView(
+                            session: session,
+                            isActive: session.id == selectedSessionID
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
                             selectedSessionID = session.id
-                            showMachineSelector = false
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(session.agent.name)
-                                        .font(.body)
-                                        .foregroundStyle(.primary)
-                                    Text(String(session.id.prefix(8)) + "…")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .fontDesign(.monospaced)
-                                }
-                                Spacer()
-                                if session.id == activeSession?.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.accentColor)
-                                        .fontWeight(.semibold)
-                                }
-                            }
+                            onDismiss()
                         }
+                        // Leading swipe: rename
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                sessionToRename = session
+                                renameDraft = session.customName
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+                        }
+                        // Trailing swipe: close
                         .swipeActions(edge: .trailing) {
                             Button("Close", role: .destructive) {
                                 closeSession(session)
                             }
                         }
                     }
+                } header: {
+                    Text("\(sessionManager.sessions.count) session\(sessionManager.sessions.count == 1 ? "" : "s")")
                 }
 
                 Section {
-                    Button {
-                        showMachineSelector = false
-                        // Small delay so the sheet dismisses before the next one opens
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            showAddAgent = true
-                        }
-                    } label: {
+                    Button(action: onAddMachine) {
                         Label("Add Machine", systemImage: "plus.circle.fill")
                             .foregroundStyle(Color.accentColor)
                     }
-
                     if !sessionManager.sessions.isEmpty {
-                        Button("Close All", role: .destructive) {
-                            showMachineSelector = false
+                        Button("Close All Sessions", role: .destructive) {
+                            onDismiss()
                             sessionManager.closeAll()
                         }
                     }
@@ -305,19 +346,104 @@ struct SessionTabsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showMachineSelector = false }
+                    Button("Done", action: onDismiss)
                 }
             }
         }
+        // Rename alert — lives inside the sheet's NavigationView
+        .alert("Rename Session", isPresented: renameAlertBinding) {
+            TextField("Session name", text: $renameDraft)
+                .autocorrectionDisabled()
+            Button("Save") {
+                sessionToRename?.customName = renameDraft
+                sessionToRename = nil
+            }
+            Button("Cancel", role: .cancel) {
+                sessionToRename = nil
+            }
+        } message: {
+            Text("Choose a name that helps you identify this session")
+        }
     }
 
-    // MARK: - Actions
+    private var renameAlertBinding: Binding<Bool> {
+        Binding(
+            get: { sessionToRename != nil },
+            set: { if !$0 { sessionToRename = nil } }
+        )
+    }
 
     private func closeSession(_ session: TerminalSession) {
         relay.sendDisconnect(sessionID: session.id)
         sessionManager.remove(session: session)
         if selectedSessionID == session.id {
             selectedSessionID = sessionManager.sessions.first?.id
+        }
+    }
+}
+
+// MARK: - SessionRowView
+// @ObservedObject allows live updates to claudeState and customName.
+
+private struct SessionRowView: View {
+    @ObservedObject var session: TerminalSession
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // Active indicator bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isActive ? Color.accentColor : Color.clear)
+                .frame(width: 3, height: 38)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.customName)
+                    .font(.system(size: 16, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 6) {
+                    // Agent name (short)
+                    Text(shortAgentName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    // Claude state badge
+                    claudeStateBadge
+                }
+            }
+
+            Spacer()
+
+            if isActive {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(Color.accentColor)
+                    .fontWeight(.semibold)
+                    .font(.system(size: 14))
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var shortAgentName: String {
+        session.agent.name.components(separatedBy: ".").first ?? session.agent.name
+    }
+
+    @ViewBuilder
+    private var claudeStateBadge: some View {
+        switch session.claudeState {
+        case .idle:
+            EmptyView()
+        case .working(let toolsUsed):
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 5, height: 5)
+                Text(toolsUsed > 0
+                     ? "working · \(toolsUsed) tool\(toolsUsed == 1 ? "" : "s")"
+                     : "working…")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         }
     }
 }

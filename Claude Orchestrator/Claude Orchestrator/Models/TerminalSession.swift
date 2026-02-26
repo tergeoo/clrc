@@ -10,6 +10,7 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     let agent: Agent
 
     @Published var title: String
+    @Published var customName: String
     @Published var isReady: Bool = false
     @Published var activityLog: [ActivityEvent] = []
     @Published var claudeState: ClaudeState = .idle
@@ -41,19 +42,21 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
         pattern: #"\x1B(?:[@-Z\-_]|\[[0-?]*[ -/]*[@-~])"#
     )
 
-    init(agent: Agent, initialCommand: String? = nil) {
+    init(agent: Agent, customName: String, initialCommand: String? = nil) {
         self.id = UUID().uuidString
         self.agent = agent
         self.title = agent.name
+        self.customName = customName
         self.initialCommand = initialCommand
         activityLog.append(ActivityEvent(sessionID: id, kind: .sessionStarted))
     }
 
     /// Used when reattaching to an existing PTY session with a known session ID.
-    init(agentID: String, agentName: String, sessionID: String) {
+    init(agentID: String, agentName: String, sessionID: String, customName: String) {
         self.id = sessionID
         self.agent = Agent(id: agentID, name: agentName, connected: true)
         self.title = agentName
+        self.customName = customName
         self.initialCommand = nil
         activityLog.append(ActivityEvent(sessionID: sessionID, kind: .sessionStarted))
     }
