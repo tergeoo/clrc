@@ -1,4 +1,4 @@
-.PHONY: relay agent relay-init agent-init uninstall logs relay-logs build-relay build-agent build release help
+.PHONY: relay agent relay-init agent-init app uninstall logs relay-logs build-relay build-agent build release help
 
 # ── Development ──────────────────────────────────────────────────────────────
 
@@ -23,6 +23,12 @@ dev:
 	@./scripts/start-relay.sh &
 	@sleep 2
 	@./scripts/start-agent.sh
+
+# ── App bundle ───────────────────────────────────────────────────────────────
+
+## Build "Claude Agent.app" — double-clickable macOS app
+app: build-agent
+	@sh scripts/make-app.sh /tmp/claude-agent
 
 # ── Installation ─────────────────────────────────────────────────────────────
 
@@ -80,5 +86,6 @@ help:
 	@echo "  make relay-logs  Tail relay logs"
 	@echo "  make status      Show service status"
 	@echo "  make build       Build both binaries"
+	@echo "  make app             Build Claude Agent.app (double-clickable)"
 	@echo "  make release VERSION=v1.0.0  Tag + push → triggers CI build"
 	@echo ""
