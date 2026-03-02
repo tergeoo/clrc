@@ -30,8 +30,8 @@ fi
 
 echo "🔄 Building agent..."
 cd "$AGENT_DIR"
-go build -o /tmp/claude-agent ./cmd/ 2>&1
+go build -o /tmp/clrc ./cmd/ 2>&1
 
 echo "🚀 Agent starting (relay: ${RELAY_URL}, name: ${AGENT_NAME:-$(hostname)})"
 echo ""
-exec /tmp/claude-agent
+exec /tmp/clrc

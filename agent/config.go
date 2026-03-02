@@ -21,7 +21,7 @@ type Config struct {
 // agentIDFile returns the path to the persisted agent ID file.
 func agentIDFile() string {
 	dir, _ := os.UserConfigDir()
-	return filepath.Join(dir, "claude-agent", "id")
+	return filepath.Join(dir, "clrc", "id")
 }
 
 // loadOrCreateAgentID returns a stable agent ID:
@@ -53,7 +53,7 @@ func (c *Config) Validate() error {
 	if c.RelayURL == "" || c.Secret == "" {
 		return fmt.Errorf("RELAY_URL and AGENT_SECRET are required\n\n" +
 			"Set them in agent/.env (dev) or in the launchd plist EnvironmentVariables (production).\n\n" +
-			"Or pass as flags:\n  claude-agent --relay ws://HOST:8080 --secret SECRET")
+			"Or pass as flags:\n  clrc --relay ws://HOST:8080 --secret SECRET")
 	}
 	return nil
 }

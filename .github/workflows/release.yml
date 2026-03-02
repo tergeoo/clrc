@@ -42,13 +42,13 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
-            -o "claude-agent-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/
+            -o "clrc-${{ matrix.goos }}-${{ matrix.goarch }}" ./cmd/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: claude-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: agent/claude-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: clrc-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: agent/clrc-${{ matrix.goos }}-${{ matrix.goarch }}
 
   # ── Build relay binary ──────────────────────────────────────────────────────
   build-relay:
@@ -123,7 +123,7 @@ jobs:
               -e RELAY_URL=wss://your-relay.com \
               -e AGENT_SECRET=your-secret \
               -e AGENT_NAME=my-server \
-              ghcr.io/${{ github.repository_owner }}/claude-agent:${{ github.ref_name }}
+              ghcr.io/${{ github.repository_owner }}/clrc:${{ github.ref_name }}
             ```
 
             ### Manual download
@@ -149,7 +149,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/claude-agent
+          images: ghcr.io/${{ github.repository_owner }}/clrc
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

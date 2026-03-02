@@ -31,4 +31,4 @@ YAML
   echo "Config written to $CONFIG_FILE"
 fi
 
-exec claude-agent --config "$CONFIG_FILE" "$@"
+exec clrc --config "$CONFIG_FILE" "$@"

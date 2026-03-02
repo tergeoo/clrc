@@ -1,6 +1,6 @@
 version: "3.9"
 
-# Docker Compose for running claude-agent on a server.
+# Docker Compose for running clrc on a server.
 # The agent connects OUT to the relay — no inbound ports needed.
 #
 # Usage:

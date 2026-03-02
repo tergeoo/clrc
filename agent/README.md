@@ -1,4 +1,4 @@
-# claude-agent
+# clrc
 
 Mac daemon. Connects to the relay, spawns PTY sessions, handles file system operations.
 
@@ -28,13 +28,13 @@ make agent            # builds and runs in foreground
 
 ## Production (launchd)
 
-Copy `com.claude.agent.plist` to `~/Library/LaunchAgents/`, fill in the `EnvironmentVariables` section, then:
+Copy `com.clrc.plist` to `~/Library/LaunchAgents/`, fill in the `EnvironmentVariables` section, then:
 
 ```bash
-launchctl load -w ~/Library/LaunchAgents/com.claude.agent.plist
+launchctl load -w ~/Library/LaunchAgents/com.clrc.plist
 ```
 
-Logs: `tail -f /tmp/claude-agent.log`
+Logs: `tail -f /tmp/clrc.log`
 
 ## One-liner install (from GitHub Releases)
 
@@ -49,13 +49,13 @@ Prompts for relay URL and secret, downloads the binary, sets up launchd.
 Flags override env vars — useful for quick testing without an `.env` file.
 
 ```bash
-claude-agent --relay wss://your-relay.up.railway.app --secret mysecret --name "My Mac"
+clrc --relay wss://your-relay.up.railway.app --secret mysecret --name "My Mac"
 ```
 
 ## Build
 
 ```bash
-go build -o /tmp/claude-agent ./cmd/
+go build -o /tmp/clrc ./cmd/
 ```
 
 ## Package structure

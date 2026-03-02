@@ -1,17 +1,17 @@
 #!/bin/sh
-# Creates "Claude Agent.app" — a double-clickable macOS app that launches the agent.
-# Usage: sh scripts/make-app.sh [/path/to/claude-agent-binary]
+# Creates "CLRC.app" — a double-clickable macOS app that launches the agent.
+# Usage: sh scripts/make-app.sh [/path/to/clrc-binary]
 set -e
 
-BINARY="${1:-/usr/local/bin/claude-agent}"
-APP="Claude Agent.app"
+BINARY="${1:-/usr/local/bin/clrc}"
+APP="CLRC.app"
 
 if [ ! -f "$BINARY" ]; then
   # Try ~/.local/bin fallback
-  BINARY="$HOME/.local/bin/claude-agent"
+  BINARY="$HOME/.local/bin/clrc"
 fi
 if [ ! -f "$BINARY" ]; then
-  echo "claude-agent binary not found. Build it first: make build-agent" >&2
+  echo "clrc binary not found. Build it first: make build-agent" >&2
   exit 1
 fi
 
@@ -27,9 +27,9 @@ cat > "$APP/Contents/Info.plist" <<'XML'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>    <string>launcher</string>
-  <key>CFBundleIdentifier</key>   <string>com.claude.agent</string>
-  <key>CFBundleName</key>         <string>Claude Agent</string>
-  <key>CFBundleDisplayName</key>  <string>Claude Agent</string>
+  <key>CFBundleIdentifier</key>   <string>com.clrc</string>
+  <key>CFBundleName</key>         <string>CLRC</string>
+  <key>CFBundleDisplayName</key>  <string>CLRC</string>
   <key>CFBundleVersion</key>      <string>1</string>
   <key>CFBundleShortVersionString</key> <string>1.0</string>
   <key>LSUIElement</key>          <true/>
@@ -38,23 +38,23 @@ cat > "$APP/Contents/Info.plist" <<'XML'
 XML
 
 # ── Embed the binary ──────────────────────────────────────────────────────────
-cp "$BINARY" "$APP/Contents/MacOS/claude-agent"
-chmod +x "$APP/Contents/MacOS/claude-agent"
+cp "$BINARY" "$APP/Contents/MacOS/clrc"
+chmod +x "$APP/Contents/MacOS/clrc"
 
 # ── Launcher shell script ─────────────────────────────────────────────────────
 cat > "$APP/Contents/MacOS/launcher" <<'LAUNCHER'
 #!/bin/bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BINARY="$DIR/claude-agent"
-CONFIG="$HOME/.config/claude-agent/.env"
+BINARY="$DIR/clrc"
+CONFIG="$HOME/.config/clrc/.env"
 
-notify() { osascript -e "display notification \"$1\" with title \"Claude Agent\"" 2>/dev/null || true; }
+notify() { osascript -e "display notification \"$1\" with title \"CLRC\"" 2>/dev/null || true; }
 ask()    { osascript -e "text returned of (display dialog \"$1\" default answer \"$2\")" 2>/dev/null; }
 ask_pw() { osascript -e "text returned of (display dialog \"$1\" default answer \"\" with hidden answer)" 2>/dev/null; }
 
 # Already running?
-if pgrep -x claude-agent >/dev/null 2>&1; then
-  notify "Already running — check /tmp/claude-agent.log"
+if pgrep -x clrc >/dev/null 2>&1; then
+  notify "Already running — check /tmp/clrc.log"
   exit 0
 fi
 
@@ -80,7 +80,7 @@ fi
 export AGENT_ID AGENT_NAME AGENT_SECRET RELAY_URL DEFAULT_COMMAND
 
 # Launch in background
-nohup "$BINARY" >> /tmp/claude-agent.log 2>&1 &
+nohup "$BINARY" >> /tmp/clrc.log 2>&1 &
 notify "Connecting to relay as \"$AGENT_NAME\"…"
 LAUNCHER
 
@@ -92,6 +92,6 @@ echo ""
 echo "  • Double-click to start the agent"
 echo "  • First launch: prompts for relay URL and secret"
 echo "  • Runs silently in background (no Dock icon)"
-echo "  • Logs: tail -f /tmp/claude-agent.log"
+echo "  • Logs: tail -f /tmp/clrc.log"
 echo ""
 echo "Drag to /Applications to keep it permanently."

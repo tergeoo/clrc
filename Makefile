@@ -26,9 +26,9 @@ dev:
 
 # ── App bundle ───────────────────────────────────────────────────────────────
 
-## Build "Claude Agent.app" — double-clickable macOS app
+## Build "CLRC.app" — double-clickable macOS app
 app: build-agent
-	@sh scripts/make-app.sh /tmp/claude-agent
+	@sh scripts/make-app.sh /tmp/clrc
 
 # ── Installation ─────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ uninstall:
 
 ## Tail agent logs
 logs:
-	@tail -f /tmp/claude-agent.log
+	@tail -f /tmp/clrc.log
 
 ## Tail relay logs
 relay-logs:
@@ -56,9 +56,9 @@ status:
 build-relay:
 	@cd relay && go build -o /tmp/claude-relay ./cmd/ && echo "✅ relay → /tmp/claude-relay"
 
-## Build agent binary → /tmp/claude-agent
+## Build agent binary → /tmp/clrc
 build-agent:
-	@cd agent && go build -o /tmp/claude-agent ./cmd/ && echo "✅ agent → /tmp/claude-agent"
+	@cd agent && go build -o /tmp/clrc ./cmd/ && echo "✅ agent → /tmp/clrc"
 
 ## Build both
 build: build-relay build-agent
@@ -86,6 +86,6 @@ help:
 	@echo "  make relay-logs  Tail relay logs"
 	@echo "  make status      Show service status"
 	@echo "  make build       Build both binaries"
-	@echo "  make app             Build Claude Agent.app (double-clickable)"
+	@echo "  make app             Build CLRC.app (double-clickable)"
 	@echo "  make release VERSION=v1.0.0  Tag + push → triggers CI build"
 	@echo ""

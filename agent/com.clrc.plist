@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.claude.agent</string>
+    <string>com.clrc</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/claude-agent</string>
+        <string>/usr/local/bin/clrc</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -20,10 +20,10 @@
     <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>/tmp/claude-agent.log</string>
+    <string>/tmp/clrc.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/claude-agent.log</string>
+    <string>/tmp/clrc.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

@@ -17,12 +17,12 @@ import (
 )
 
 const (
-	logFile = "/tmp/claude-agent.log"
+	logFile = "/tmp/clrc.log"
 )
 
 func pidFile() string {
 	dir, _ := os.UserConfigDir()
-	return filepath.Join(dir, "claude-agent", "agent.pid")
+	return filepath.Join(dir, "clrc", "agent.pid")
 }
 
 func readPID() int {
@@ -138,7 +138,9 @@ func loadEnvFile(path string) {
 func run() {
 	// Load config file if env vars not already set (daemon mode).
 	// Use XDG ~/.config path (also works on macOS for this tool).
-	loadEnvFile(filepath.Join(os.Getenv("HOME"), ".config", "claude-agent", ".env"))
+	home := os.Getenv("HOME")
+	loadEnvFile(filepath.Join(home, ".config", "clrc", ".env"))
+	loadEnvFile(filepath.Join(home, ".config", "claude-agent", ".env")) // legacy fallback
 	var (
 		relay  = flag.String("relay", "", "Override RELAY_URL")
 		secret = flag.String("secret", "", "Override AGENT_SECRET")
@@ -170,7 +172,7 @@ func run() {
 		log.Fatal(err)
 	}
 
-	log.Printf("Starting Claude Agent")
+	log.Printf("Starting CLRC")
 	log.Printf("  Agent ID: %s", cfg.AgentID)
 	log.Printf("  Name:     %s", cfg.Name)
 	log.Printf("  Relay:    %s", cfg.RelayURL)
@@ -209,8 +211,8 @@ func main() {
 	case "_run", "": // internal daemon process or foreground run
 		run()
 	default:
-		fmt.Fprintf(os.Stderr, "Usage: claude-agent [start|stop|restart|status|logs]\n")
-		fmt.Fprintf(os.Stderr, "       claude-agent [--relay URL] [--secret SECRET] [--name NAME]\n")
+		fmt.Fprintf(os.Stderr, "Usage: clrc [start|stop|restart|status|logs]\n")
+		fmt.Fprintf(os.Stderr, "       clrc [--relay URL] [--secret SECRET] [--name NAME]\n")
 		os.Exit(1)
 	}
 }
