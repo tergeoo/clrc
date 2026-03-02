@@ -3,6 +3,8 @@ package agent
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -16,10 +18,31 @@ type Config struct {
 	DefaultCommand string
 }
 
+// agentIDFile returns the path to the persisted agent ID file.
+func agentIDFile() string {
+	dir, _ := os.UserConfigDir()
+	return filepath.Join(dir, "claude-agent", "id")
+}
+
+// loadOrCreateAgentID returns a stable agent ID:
+// reads from the id file, or generates + saves a new one.
+func loadOrCreateAgentID() string {
+	path := agentIDFile()
+	if data, err := os.ReadFile(path); err == nil {
+		if id := strings.TrimSpace(string(data)); id != "" {
+			return id
+		}
+	}
+	id := uuid.New().String()
+	_ = os.MkdirAll(filepath.Dir(path), 0700)
+	_ = os.WriteFile(path, []byte(id+"\n"), 0600)
+	return id
+}
+
 // Validate fills defaults and returns an error if required fields are missing.
 func (c *Config) Validate() error {
 	if c.AgentID == "" {
-		c.AgentID = uuid.New().String()
+		c.AgentID = loadOrCreateAgentID()
 	}
 	if c.Name == "" {
 		c.Name, _ = os.Hostname()
