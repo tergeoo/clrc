@@ -124,6 +124,9 @@ Build & run on device. Enter relay URL and password to connect.
 ```sh
 make install          # build agent + install to /usr/local/bin
 make config           # create ~/.config/clrc/.env interactively
+make show             # print current config
+make edit             # open config in $EDITOR
+make set KEY=RELAY_URL VALUE=wss://...  # set one value
 make dev              # start relay + agent locally (foreground)
 make build            # build both binaries to /tmp/
 make relay            # start relay only

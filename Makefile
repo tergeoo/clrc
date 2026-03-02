@@ -17,6 +17,28 @@ install: build-agent
 	@echo "  make config   # create ~/.config/clrc/.env"
 	@echo "  clrc start"
 
+## Open ~/.config/clrc/.env in $EDITOR
+edit:
+	@test -f ~/.config/clrc/.env || (echo "No config found. Run: make config" && exit 1)
+	@$${EDITOR:-nano} ~/.config/clrc/.env
+
+## Set a single config value: make set KEY=RELAY_URL VALUE=wss://...
+set:
+	@test -n "$(KEY)" || (echo "Usage: make set KEY=RELAY_URL VALUE=wss://..." && exit 1)
+	@test -n "$(VALUE)" || (echo "Usage: make set KEY=RELAY_URL VALUE=wss://..." && exit 1)
+	@test -f ~/.config/clrc/.env || (mkdir -p ~/.config/clrc && touch ~/.config/clrc/.env && chmod 600 ~/.config/clrc/.env)
+	@if grep -q '^$(KEY)=' ~/.config/clrc/.env 2>/dev/null; then \
+		sed -i '' 's|^$(KEY)=.*|$(KEY)="$(VALUE)"|' ~/.config/clrc/.env; \
+	else \
+		echo '$(KEY)="$(VALUE)"' >> ~/.config/clrc/.env; \
+	fi
+	@echo "✅ $(KEY) updated"
+	@grep '^$(KEY)=' ~/.config/clrc/.env
+
+## Show current config
+show:
+	@test -f ~/.config/clrc/.env && cat ~/.config/clrc/.env || echo "No config at ~/.config/clrc/.env"
+
 ## Create ~/.config/clrc/.env interactively
 config:
 	@mkdir -p ~/.config/clrc
@@ -119,8 +141,13 @@ help:
 	@echo ""
 	@echo "Install from source:"
 	@echo "  make install          Build + install to /usr/local/bin"
-	@echo "  make config           Create ~/.config/clrc/.env"
+	@echo "  make config           Create ~/.config/clrc/.env interactively"
 	@echo "  clrc start            Start daemon"
+	@echo ""
+	@echo "Config:"
+	@echo "  make show             Print current config"
+	@echo "  make edit             Open config in \$$EDITOR"
+	@echo "  make set KEY=RELAY_URL VALUE=wss://...  Set one value"
 	@echo ""
 	@echo "Install binary (no build required):"
 	@echo "  curl -fsSL https://raw.githubusercontent.com/tergeoo/clrc/main/install.sh | sh"
