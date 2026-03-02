@@ -25,7 +25,7 @@ COPY --from=builder /app/claude-agent /usr/local/bin/claude-agent
 # RELAY_URL     - wss://your-relay.example.com
 # DEFAULT_CMD   - command to run in PTY (default: bash)
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["tini", "--", "docker-entrypoint.sh"]
