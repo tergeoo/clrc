@@ -62,7 +62,11 @@ struct NewSessionSheet: View {
                 if let agent = selectedAgent {
                     FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false) { path, dangerous in
                         showBrowser = false
-                        start(in: path, agent: agent, dangerous: dangerous)
+                        // Let the inner sheet finish dismissing before starting the session
+                        // and dismissing this sheet — simultaneous dismissals drop transitions.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            start(in: path, agent: agent, dangerous: dangerous)
+                        }
                     }
                     .environmentObject(relay)
                 }
@@ -129,6 +133,7 @@ struct NewSessionSheet: View {
             }
             Button {
                 sessionManager.createSession(for: agent)
+                renameIfNeeded()
                 dismiss()
             } label: {
                 Label("Plain shell", systemImage: "terminal")
