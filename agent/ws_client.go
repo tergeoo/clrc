@@ -16,6 +16,37 @@ type Message struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
+// connectReq is the payload of a "connect" control message.
+// Name is optional — older clients don't send it.
+type connectReq struct {
+	SessionID string `json:"session_id"`
+	Cols      uint16 `json:"cols"`
+	Rows      uint16 `json:"rows"`
+	Name      string `json:"name"`
+}
+
+// buildSessionsList joins live PTY sessions with their on-disk metadata.
+// Only live sessions are returned; disk-only entries are stale.
+func buildSessionsList(live map[string]*PTYSession, disk []SessionInfo) []map[string]any {
+	byID := make(map[string]SessionInfo, len(disk))
+	for _, d := range disk {
+		byID[d.ID] = d
+	}
+	out := make([]map[string]any, 0, len(live))
+	for id, sess := range live {
+		entry := map[string]any{"id": id, "cols": sess.Cols, "rows": sess.Rows}
+		if d, ok := byID[id]; ok {
+			if d.Name != "" {
+				entry["name"] = d.Name
+			}
+			entry["command"] = d.Command
+			entry["started"] = d.Started.UTC().Format(time.RFC3339)
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
 // WSClient manages the persistent WebSocket connection to the relay server.
 type WSClient struct {
 	cfg      *Config
@@ -165,11 +196,7 @@ func (c *WSClient) handleText(ctx context.Context, data []byte) {
 }
 
 func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
-	var req struct {
-		SessionID string `json:"session_id"`
-		Cols      uint16 `json:"cols"`
-		Rows      uint16 `json:"rows"`
-	}
+	var req connectReq
 	if err := json.Unmarshal(payload, &req); err != nil {
 		log.Printf("Invalid connect payload: %v", err)
 		return
@@ -183,6 +210,9 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 	if existing != nil {
 		existing.SetSendFn(c.sendToRelay)
 		existing.Resize(req.Cols, req.Rows)
+		if req.Name != "" {
+			RenameSess(req.SessionID, req.Name) // rename-on-reconnect keeps names in sync
+		}
 		log.Printf("PTY session reattached: %s (%dx%d)", req.SessionID, req.Cols, req.Rows)
 		return
 	}
@@ -202,7 +232,7 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 	c.sessions[req.SessionID] = sess
 	c.mu.Unlock()
 
-	WriteSess(req.SessionID, sess.Pid(), command, "")
+	WriteSess(req.SessionID, sess.Pid(), command, req.Name)
 	log.Printf("PTY session started: %s (command: %s, %dx%d)", req.SessionID, command, req.Cols, req.Rows)
 
 	// Remove session from map when process exits (but don't kill it — it exits on its own)
@@ -278,15 +308,13 @@ func (c *WSClient) handleListSessions(ctx context.Context, payload json.RawMessa
 	json.Unmarshal(payload, &req)
 
 	c.mu.RLock()
-	sessions := make([]map[string]any, 0, len(c.sessions))
+	live := make(map[string]*PTYSession, len(c.sessions))
 	for id, sess := range c.sessions {
-		sessions = append(sessions, map[string]any{
-			"id":   id,
-			"cols": sess.Cols,
-			"rows": sess.Rows,
-		})
+		live[id] = sess
 	}
 	c.mu.RUnlock()
+
+	sessions := buildSessionsList(live, ListSess())
 
 	respPayload, _ := json.Marshal(map[string]any{
 		"request_id": req.RequestID,

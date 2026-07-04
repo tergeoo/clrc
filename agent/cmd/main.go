@@ -117,15 +117,22 @@ func cmdSessions() {
 		fmt.Println("No active sessions")
 		return
 	}
-	fmt.Printf("%-10s  %-6s  %-10s  %s\n", "SESSION", "PID", "COMMAND", "STARTED")
-	fmt.Println(strings.Repeat("─", 52))
+	fmt.Printf("%-10s  %-18s  %-6s  %-10s  %s\n", "SESSION", "NAME", "PID", "COMMAND", "STARTED")
+	fmt.Println(strings.Repeat("─", 70))
 	for _, s := range sessions {
 		short := s.ID
 		if len(short) > 8 {
 			short = short[:8]
 		}
-		fmt.Printf("%-10s  %-6d  %-10s  %s\n",
-			short, s.PID, s.Command, s.Started.Format("15:04:05"))
+		name := s.Name
+		if name == "" {
+			name = "—"
+		}
+		if len(name) > 18 {
+			name = name[:17] + "…"
+		}
+		fmt.Printf("%-10s  %-18s  %-6d  %-10s  %s\n",
+			short, name, s.PID, s.Command, s.Started.Format("15:04:05"))
 	}
 }
 
@@ -228,11 +235,11 @@ func setConfigValue(path, key, value string) {
 func cmdConfig() {
 	fs := flag.NewFlagSet("config", flag.ExitOnError)
 	relayURL := fs.String("relay-url", "", "Set RELAY_URL")
-	secret   := fs.String("secret", "", "Set AGENT_SECRET")
-	name     := fs.String("name", "", "Set AGENT_NAME")
-	command  := fs.String("command", "", "Set DEFAULT_COMMAND")
-	show     := fs.Bool("show", false, "Print current config")
-	edit     := fs.Bool("edit", false, "Open config in $EDITOR")
+	secret := fs.String("secret", "", "Set AGENT_SECRET")
+	name := fs.String("name", "", "Set AGENT_NAME")
+	command := fs.String("command", "", "Set DEFAULT_COMMAND")
+	show := fs.Bool("show", false, "Print current config")
+	edit := fs.Bool("edit", false, "Open config in $EDITOR")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: clrc config [flags]\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
@@ -261,10 +268,22 @@ func cmdConfig() {
 	}
 
 	changed := false
-	if *relayURL != "" { setConfigValue(path, "RELAY_URL", *relayURL); changed = true }
-	if *secret != ""   { setConfigValue(path, "AGENT_SECRET", *secret); changed = true }
-	if *name != ""     { setConfigValue(path, "AGENT_NAME", *name); changed = true }
-	if *command != ""  { setConfigValue(path, "DEFAULT_COMMAND", *command); changed = true }
+	if *relayURL != "" {
+		setConfigValue(path, "RELAY_URL", *relayURL)
+		changed = true
+	}
+	if *secret != "" {
+		setConfigValue(path, "AGENT_SECRET", *secret)
+		changed = true
+	}
+	if *name != "" {
+		setConfigValue(path, "AGENT_NAME", *name)
+		changed = true
+	}
+	if *command != "" {
+		setConfigValue(path, "DEFAULT_COMMAND", *command)
+		changed = true
+	}
 
 	if *show || !changed {
 		data, err := os.ReadFile(path)
