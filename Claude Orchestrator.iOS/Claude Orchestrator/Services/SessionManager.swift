@@ -210,6 +210,12 @@ final class SessionManager: ObservableObject {
         store.remove(id: id)
     }
 
+    // MARK: - Recents
+
+    func recentProjects(for agent: Agent) -> [String] {
+        store.recentProjects(forAgent: agent.id)
+    }
+
     private func agentFor(id: String) -> Agent? {
         relay.agents.first { $0.id == id && $0.connected }
     }

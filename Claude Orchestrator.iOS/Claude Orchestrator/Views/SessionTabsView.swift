@@ -1,4 +1,5 @@
 import SwiftUI
+import ClrcCore
 
 // MARK: - AppTab
 
@@ -19,6 +20,7 @@ struct SessionTabsView: View {
     @State private var showMachineSelector = false
     @State private var showSettings = false
     @State private var showAddAgent = false
+    @State private var showNewSession = false
 
     var activeSession: TerminalSession? {
         sessionManager.sessions.first(where: { $0.id == selectedSessionID })
@@ -82,6 +84,11 @@ struct SessionTabsView: View {
                 .environmentObject(sessionManager)
                 .environmentObject(authService)
         }
+        .sheet(isPresented: $showNewSession) {
+            NewSessionSheet(preferredAgentID: activeSession?.agent.id)
+                .environmentObject(relay)
+                .environmentObject(sessionManager)
+        }
         .onChange(of: sessionManager.sessions) { _, sessions in
             if let last = sessions.last,
                selectedSessionID == nil || !sessions.contains(where: { $0.id == selectedSessionID }) {
@@ -132,6 +139,16 @@ struct SessionTabsView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
+
+            // New session
+            Button {
+                showNewSession = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
 
             // Settings
             Button {
@@ -407,6 +424,46 @@ private struct MachineSelectorSheet: View {
                             .font(.subheadline)
                     } header: {
                         Label("Mac Agents", systemImage: "desktopcomputer")
+                    }
+                }
+
+                // ── Ended sessions (PTY gone) ────────────────────────────
+                if !sessionManager.tombstones.isEmpty {
+                    Section {
+                        ForEach(sessionManager.tombstones) { tombstone in
+                            HStack(spacing: 12) {
+                                Image(systemName: "moon.zzz")
+                                    .foregroundStyle(.tertiary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(tombstone.customName)
+                                        .foregroundStyle(.secondary)
+                                    if let path = tombstone.projectPath {
+                                        Text(path)
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                }
+                                Spacer()
+                                Button {
+                                    sessionManager.restartTombstone(tombstone)
+                                    onDismiss()
+                                } label: {
+                                    Image(systemName: "arrow.clockwise.circle.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button("Remove", role: .destructive) {
+                                    sessionManager.removeTombstone(id: tombstone.id)
+                                }
+                            }
+                        }
+                    } header: {
+                        Label("Ended sessions", systemImage: "moon.zzz")
                     }
                 }
 
