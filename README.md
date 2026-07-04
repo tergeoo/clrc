@@ -168,6 +168,7 @@ clrc/
 ├── Formula/clrc.rb             Homebrew formula (requires CLT)
 ├── Casks/clrc.rb               Homebrew cask (no CLT required)
 └── Claude Orchestrator.iOS/    SwiftUI iOS app
+    └── ClrcCore/               local SwiftPM package: session persistence logic + tests
 ```
 
 ---

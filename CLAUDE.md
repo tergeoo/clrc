@@ -15,7 +15,10 @@ iPhone (SwiftUI) ──WS──▶ Relay (Go) ◀──WS── clrc agent (Go d
 
 - **`relay/`** — Go HTTP/WebSocket server. Routes traffic between iOS clients and Mac agents. Stateless except for in-memory connection/session maps. Deployed once (Railway/fly.io/local) and shared.
 - **`agent/`** — Go daemon that runs on each Mac. Connects *out* to the relay (so no inbound ports needed), spawns PTY sessions, and streams terminal I/O. Ships as the `clrc` CLI binary.
-- **`Claude Orchestrator.iOS/`** — SwiftUI iPhone app (Xcode project). Terminal UI, agent list, file browser.
+- **`Claude Orchestrator.iOS/`** — SwiftUI iPhone app (Xcode project). Terminal UI, agent list,
+  file browser. Testable session logic lives in the local SwiftPM package
+  `Claude Orchestrator.iOS/ClrcCore` (`swift test`); the app persists sessions locally and
+  auto-reattaches to live PTYs on launch.
 
 > Naming note: the product is **clrc**, but the repo dir, Go module paths (`github.com/claude-orchestrator/...`), and the iOS folder still use the older "claude-orchestrator" / "Claude Orchestrator" name. The CLI binary is `clrc`.
 
@@ -29,9 +32,12 @@ make build-relay      # relay only
 make build-agent      # agent (clrc) only
 make install          # build agent + copy to /usr/local/bin/clrc
 
-# tests / vet (run inside a module dir — there are currently no _test.go files)
+# tests / vet (run inside a module dir; relay currently has no _test.go files)
 cd relay && go test -race ./... && go vet ./...
 cd agent && go test -race ./... && go vet ./...
+
+# iOS logic tests
+cd "Claude Orchestrator.iOS/ClrcCore" && swift test
 ```
 
 Local dev (relay + agent on the same Mac):
@@ -66,6 +72,9 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 **Two transport channels on the same socket:**
 - **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `agent_list`, `session_ready`, `error`, `*_result`).
 - **Binary frames** = raw terminal bytes, wrapped in a custom framing: `[4-byte big-endian session_id length][session_id][payload]`. See `encodeBinaryFrame`/`decodeBinaryFrame`, duplicated in both `relay/hub.go` and `agent/ws_client.go`.
+- `connect` carries an optional `name` (session display name). The agent persists it
+  (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
+  in `sessions_list`. All fields are optional — old clients/agents interoperate.
 
 ### Relay routing (`relay/hub.go`)
 
@@ -98,4 +107,4 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 ## Project rules
 
-This repo ships rule files under `.claude/rules/` (common + Go specifics). Key points: gofmt/goimports mandatory, wrap errors with `%w` and context, table-driven tests run with `-race`, small interfaces, secrets only from env. There are currently no automated tests — adding them (and keeping the three `Message` definitions in sync via tests) is the highest-value testing gap.
+This repo ships rule files under `.claude/rules/` (common + Go specifics). Key points: gofmt/goimports mandatory, wrap errors with `%w` and context, table-driven tests run with `-race`, small interfaces, secrets only from env. The `agent/` module and the iOS `ClrcCore` package now have automated tests (`go test -race ./...` and `swift test`, respectively); `relay/` still has none — adding relay tests (and keeping the three `Message` definitions in sync via tests) is the highest-value remaining testing gap.
