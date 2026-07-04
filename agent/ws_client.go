@@ -202,7 +202,7 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 	c.sessions[req.SessionID] = sess
 	c.mu.Unlock()
 
-	WriteSess(req.SessionID, sess.Pid(), command)
+	WriteSess(req.SessionID, sess.Pid(), command, "")
 	log.Printf("PTY session started: %s (command: %s, %dx%d)", req.SessionID, command, req.Cols, req.Rows)
 
 	// Remove session from map when process exits (but don't kill it — it exits on its own)

@@ -12,6 +12,7 @@ type SessionInfo struct {
 	ID      string    `json:"id"`
 	PID     int       `json:"pid"`
 	Command string    `json:"command"`
+	Name    string    `json:"name,omitempty"`
 	Started time.Time `json:"started"`
 }
 
@@ -21,11 +22,28 @@ func sessDir() string {
 }
 
 // WriteSess persists a session entry to disk.
-func WriteSess(id string, pid int, command string) {
+func WriteSess(id string, pid int, command, name string) {
 	_ = os.MkdirAll(sessDir(), 0700)
-	info := SessionInfo{ID: id, PID: pid, Command: command, Started: time.Now()}
+	info := SessionInfo{ID: id, PID: pid, Command: command, Name: name, Started: time.Now()}
 	data, _ := json.Marshal(info)
 	_ = os.WriteFile(filepath.Join(sessDir(), id+".json"), data, 0600)
+}
+
+// RenameSess updates the stored display name of a session, keeping other fields.
+// Missing or unreadable entries are ignored.
+func RenameSess(id, name string) {
+	path := filepath.Join(sessDir(), id+".json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var info SessionInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return
+	}
+	info.Name = name
+	out, _ := json.Marshal(info)
+	_ = os.WriteFile(path, out, 0600)
 }
 
 // RemoveSess deletes a session entry from disk.
