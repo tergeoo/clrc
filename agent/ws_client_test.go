@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -85,5 +86,26 @@ func TestBuildSessionsList(t *testing.T) {
 	}
 	if _, has := byID["stale-on-disk"]; has {
 		t.Error("disk-only (dead) session must not be listed")
+	}
+}
+
+func TestSanitizeSessionName(t *testing.T) {
+	long := strings.Repeat("я", 200)
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain ascii", "drops.iOS", "drops.iOS"},
+		{"strips control and escape bytes", "bad\x1b[31mname\x00\n", "bad[31mname"},
+		{"caps at 128 runes not bytes", long, strings.Repeat("я", 128)},
+		{"empty stays empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sanitizeSessionName(tt.in); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

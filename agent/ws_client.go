@@ -25,6 +25,23 @@ type connectReq struct {
 	Name      string `json:"name"`
 }
 
+// sanitizeSessionName caps the display name and strips control characters
+// (it is written to disk, echoed in sessions_list, and printed by `clrc sessions`).
+func sanitizeSessionName(name string) string {
+	const maxLen = 128
+	cleaned := make([]rune, 0, len(name))
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			continue
+		}
+		cleaned = append(cleaned, r)
+		if len(cleaned) >= maxLen {
+			break
+		}
+	}
+	return string(cleaned)
+}
+
 // buildSessionsList joins live PTY sessions with their on-disk metadata.
 // Only live sessions are returned; disk-only entries are stale.
 func buildSessionsList(live map[string]*PTYSession, disk []SessionInfo) []map[string]any {
@@ -201,6 +218,7 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		log.Printf("Invalid connect payload: %v", err)
 		return
 	}
+	req.Name = sanitizeSessionName(req.Name)
 
 	// Check if session already exists — reattach instead of creating new PTY
 	c.mu.RLock()

@@ -46,10 +46,15 @@ struct AgentListView: View {
                 agent: agent,
                 existing: existingSessions,
                 isLoading: isLoadingSessions
-            ) { sessionID in
+            ) { picked in
                 selectedAgent = nil
-                if let sid = sessionID {
-                    sessionManager.attachSession(agentID: agent.id, sessionID: sid, agentName: agent.name)
+                if let picked {
+                    sessionManager.attachSession(
+                        agentID: agent.id,
+                        sessionID: picked.id,
+                        agentName: agent.name,
+                        customName: picked.name
+                    )
                 } else {
                     sessionManager.createSession(for: agent)
                 }
@@ -130,7 +135,7 @@ struct SessionPickerView: View {
     let agent: Agent
     let existing: [RemoteSessionInfo]
     let isLoading: Bool
-    let onPick: (String?) -> Void  // nil = new session
+    let onPick: (RemoteSessionInfo?) -> Void  // nil = new session
 
     @Environment(\.dismiss) private var dismiss
 
@@ -157,7 +162,7 @@ struct SessionPickerView: View {
                     Section("Existing Sessions") {
                         ForEach(existing) { session in
                             Button {
-                                onPick(session.id)
+                                onPick(session)
                             } label: {
                                 HStack {
                                     Image(systemName: "terminal")

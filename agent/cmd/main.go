@@ -128,8 +128,8 @@ func cmdSessions() {
 		if name == "" {
 			name = "—"
 		}
-		if len(name) > 18 {
-			name = name[:17] + "…"
+		if runes := []rune(name); len(runes) > 18 {
+			name = string(runes[:17]) + "…"
 		}
 		fmt.Printf("%-10s  %-18s  %-6d  %-10s  %s\n",
 			short, name, s.PID, s.Command, s.Started.Format("15:04:05"))

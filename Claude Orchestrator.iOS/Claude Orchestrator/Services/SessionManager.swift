@@ -54,6 +54,8 @@ final class SessionManager: ObservableObject {
         // After every reconnect, re-register all live sessions with the relay.
         relay.onConnect = { [weak self] in
             guard let self else { return }
+            // Force a fresh reconcile pass when the agent list arrives after reconnect
+            self.knownAgentIDs.removeAll()
             for session in self.sessions {
                 self.relay.sendConnect(
                     agentID: session.agent.id,
@@ -196,8 +198,8 @@ final class SessionManager: ObservableObject {
 
     /// Start a fresh session in the dead session's project folder.
     func restartTombstone(_ tombstone: PersistedSession) {
+        guard let agent = agentFor(id: tombstone.agentID) else { return } // offline: keep the tombstone
         removeTombstone(id: tombstone.id)
-        guard let agent = agentFor(id: tombstone.agentID) else { return }
         if let path = tombstone.projectPath {
             createSession(for: agent, initialCommand: "cd \"\(path)\" && claude")
         } else {
