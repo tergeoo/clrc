@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0617B1E6B1634E01B968BF62 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 87DE5393ACC84EA48C185E68 /* SwiftTerm */; };
+		11AA00012F5000010000AA01 /* ClrcCore in Frameworks */ = {isa = PBXBuildFile; productRef = 11AA00022F5000020000AA02 /* ClrcCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0617B1E6B1634E01B968BF62 /* SwiftTerm in Frameworks */,
+				11AA00012F5000010000AA01 /* ClrcCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = "Claude Orchestrator";
 			packageProductDependencies = (
 				87DE5393ACC84EA48C185E68 /* SwiftTerm */,
+				11AA00022F5000020000AA02 /* ClrcCore */,
 			);
 			productName = "Claude Orchestrator";
 			productReference = 11C29C9D2F4F302A00E4BEBD /* Claude Orchestrator.app */;
@@ -102,6 +105,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				772E9258428F4FBF9EAB9B18 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				11AA00032F5000030000AA03 /* XCLocalSwiftPackageReference "ClrcCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 11C29C9E2F4F302A00E4BEBD /* Products */;
@@ -334,6 +338,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		11AA00032F5000030000AA03 /* XCLocalSwiftPackageReference "ClrcCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ClrcCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		772E9258428F4FBF9EAB9B18 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -350,6 +361,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 772E9258428F4FBF9EAB9B18 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		11AA00022F5000020000AA02 /* ClrcCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClrcCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

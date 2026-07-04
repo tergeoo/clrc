@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import ClrcCore
 
 @main
 struct ClaudeTerminalApp: App {
