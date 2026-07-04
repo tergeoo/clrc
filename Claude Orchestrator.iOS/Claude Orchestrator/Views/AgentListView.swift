@@ -115,11 +115,12 @@ struct AgentListView: View {
     private func connectTapped(agent: Agent) {
         existingSessions = []
         isLoadingSessions = true
+        selectedAgent = agent
         relay.requestSessionList(agentID: agent.id) { sessions in
+            guard selectedAgent?.id == agent.id else { return } // stale reply for a previous tap
             existingSessions = sessions ?? []
             isLoadingSessions = false
         }
-        selectedAgent = agent
     }
 }
 
