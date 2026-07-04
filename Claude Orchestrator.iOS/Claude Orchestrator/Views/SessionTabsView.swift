@@ -4,7 +4,6 @@ import SwiftUI
 
 enum AppTab: String, CaseIterable {
     case terminal = "Terminal"
-    case activity = "Activity"
     case files    = "Files"
 }
 
@@ -36,38 +35,12 @@ struct SessionTabsView: View {
         }
     }
 
-    // Shown when no sessions exist yet (waiting for agents to come online)
+    // Shown when no sessions exist yet — full agent list so user can connect immediately
     private var waitingView: some View {
-        VStack(spacing: 20) {
-            switch relay.connectionState {
-            case .connecting, .disconnected:
-                ProgressView()
-                Text(relay.connectionState == .connecting ? "Connecting…" : "Disconnected")
-                    .foregroundStyle(.secondary)
-                if relay.connectionState == .disconnected {
-                    Button("Retry") { relay.connect() }
-                        .buttonStyle(.borderedProminent)
-                }
-            case .connected:
-                Image(systemName: "desktopcomputer.trianglebadge.exclamationmark")
-                    .font(.system(size: 48))
-                    .foregroundStyle(.tertiary)
-                Text("No agents online")
-                    .font(.headline)
-                Text("Start clrc on your Mac to connect")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Button("Add manually") { showAddAgent = true }
-                    .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $showAddAgent) {
-            AgentListView()
-                .environmentObject(relay)
-                .environmentObject(sessionManager)
-                .environmentObject(authService)
-        }
+        AgentListView()
+            .environmentObject(relay)
+            .environmentObject(sessionManager)
+            .environmentObject(authService)
     }
 
     // MARK: - Main layout
@@ -244,7 +217,6 @@ struct SessionTabsView: View {
     private var tabContent: some View {
         switch activeTab {
         case .terminal: terminalTab
-        case .activity: activityTab
         case .files:    filesTab
         }
     }
@@ -253,15 +225,6 @@ struct SessionTabsView: View {
     private var terminalTab: some View {
         if let session = activeSession {
             TerminalTabContent(session: session)
-        } else {
-            noSessionPlaceholder
-        }
-    }
-
-    @ViewBuilder
-    private var activityTab: some View {
-        if let session = activeSession {
-            ActivityFeedView(session: session)
         } else {
             noSessionPlaceholder
         }
@@ -281,6 +244,7 @@ struct SessionTabsView: View {
                 sessionManager.createSession(for: session.agent, initialCommand: cmd)
                 activeTab = .terminal
             }
+            .id(session.agent.id)
             .environmentObject(relay)
         } else {
             noSessionPlaceholder
@@ -310,7 +274,6 @@ private struct TopTabButton: View {
     private var icon: String {
         switch tab {
         case .terminal: return "terminal.fill"
-        case .activity: return "list.bullet.clipboard.fill"
         case .files:    return "folder.fill"
         }
     }

@@ -1,4 +1,4 @@
-# ── Secrets (never commit) ───────────────────────────────────────────────────
+# ── Secrets ──────────────────────────────────────────────────────────────────
 relay/.env
 agent/.env
 
@@ -6,9 +6,14 @@ agent/.env
 dist/
 bin/
 agent/agent
-agent/claude-agent
+agent/clrc
+agent/clrc-*
 relay/relay
 relay/claude-relay
+relay/claude-relay-*
+
+# ── Backups ───────────────────────────────────────────────────────────────────
+*.bak
 
 # ── IDE ──────────────────────────────────────────────────────────────────────
 .idea/
@@ -21,6 +26,8 @@ relay/claude-relay
 *.xcuserstate
 xcuserdata/
 **/xcuserdata/
+.swiftpm/
+**/.swiftpm/
 DerivedData/
 *.ipa
 *.dSYM.zip
@@ -30,4 +37,7 @@ build/
 # ── Go ───────────────────────────────────────────────────────────────────────
 *.test
 *.out
-Claude Agent.app/
+
+# ── App bundle ───────────────────────────────────────────────────────────────
+CLRC.app/
+Claude\ Agent.app/

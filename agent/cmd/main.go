@@ -111,6 +111,92 @@ func cmdLogs() {
 	_ = tail.Run()
 }
 
+func cmdSessions() {
+	sessions := agent.ListSess()
+	if len(sessions) == 0 {
+		fmt.Println("No active sessions")
+		return
+	}
+	fmt.Printf("%-10s  %-6s  %-10s  %s\n", "SESSION", "PID", "COMMAND", "STARTED")
+	fmt.Println(strings.Repeat("─", 52))
+	for _, s := range sessions {
+		short := s.ID
+		if len(short) > 8 {
+			short = short[:8]
+		}
+		fmt.Printf("%-10s  %-6d  %-10s  %s\n",
+			short, s.PID, s.Command, s.Started.Format("15:04:05"))
+	}
+}
+
+func cmdAttach() {
+	sessions := agent.ListSess()
+	if len(sessions) == 0 {
+		fmt.Println("No active sessions")
+		return
+	}
+
+	// Find session by ID prefix (or exact)
+	var target *agent.SessionInfo
+	if len(os.Args) >= 3 {
+		prefix := os.Args[2]
+		for i := range sessions {
+			if strings.HasPrefix(sessions[i].ID, prefix) {
+				target = &sessions[i]
+				break
+			}
+		}
+		if target == nil {
+			fmt.Fprintf(os.Stderr, "Session not found: %s\n", prefix)
+			os.Exit(1)
+		}
+	} else if len(sessions) == 1 {
+		target = &sessions[0]
+	} else {
+		fmt.Fprintln(os.Stderr, "Multiple sessions — specify ID prefix:")
+		cmdSessions()
+		os.Exit(1)
+	}
+
+	// reptyr required
+	reptyrPath, err := exec.LookPath("reptyr")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "reptyr not found. Install: brew install reptyr")
+		os.Exit(1)
+	}
+
+	tmuxName := "clrc-" + target.ID[:8]
+
+	// Check if tmux is available
+	tmuxPath, tmuxErr := exec.LookPath("tmux")
+	if tmuxErr != nil {
+		// No tmux — just reptyr directly
+		fmt.Printf("Attaching to session %s (PID %d)...\n", target.ID[:8], target.PID)
+		cmd := exec.Command(reptyrPath, strconv.Itoa(target.PID))
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		_ = cmd.Run()
+		return
+	}
+
+	// Check if tmux session already exists
+	check := exec.Command(tmuxPath, "has-session", "-t", tmuxName)
+	if check.Run() == nil {
+		// Already exists — attach
+		fmt.Printf("Attaching to tmux session %s...\n", tmuxName)
+		cmd := exec.Command(tmuxPath, "attach", "-t", tmuxName)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+		_ = cmd.Run()
+		return
+	}
+
+	// Create new tmux session running reptyr
+	fmt.Printf("Attaching to session %s (PID %d) in tmux...\n", target.ID[:8], target.PID)
+	cmd := exec.Command(tmuxPath, "new-session", "-s", tmuxName,
+		reptyrPath, strconv.Itoa(target.PID))
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
+	_ = cmd.Run()
+}
+
 func configFilePath() string {
 	return filepath.Join(os.Getenv("HOME"), ".config", "clrc", ".env")
 }
@@ -287,6 +373,10 @@ func main() {
 		cmdStatus()
 	case "logs":
 		cmdLogs()
+	case "sessions":
+		cmdSessions()
+	case "attach":
+		cmdAttach()
 	case "config":
 		cmdConfig()
 	case "_run", "": // internal daemon process or foreground run
@@ -299,6 +389,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  clrc restart                         restart daemon\n")
 		fmt.Fprintf(os.Stderr, "  clrc status                          show status\n")
 		fmt.Fprintf(os.Stderr, "  clrc logs                            tail log file\n")
+		fmt.Fprintf(os.Stderr, "  clrc sessions                        list active PTY sessions\n")
+		fmt.Fprintf(os.Stderr, "  clrc attach [session-id]             attach via reptyr + tmux\n")
 		fmt.Fprintf(os.Stderr, "  clrc config                          show config\n")
 		fmt.Fprintf(os.Stderr, "  clrc config --relay-url wss://...    set relay URL\n")
 		fmt.Fprintf(os.Stderr, "  clrc config --secret SECRET          set agent secret\n")

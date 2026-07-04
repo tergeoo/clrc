@@ -109,11 +109,12 @@ struct LoginView: View {
             errorMessage = "Invalid server URL"
             return
         }
+
         isLoading = true
         errorMessage = nil
-        // Apply the (possibly changed) URL before connecting
         authService.updateRelayURL(url)
         relay.updateRelayURL(url)
+
         Task {
             do {
                 try await authService.login(password: password)
@@ -136,17 +137,24 @@ final class SessionManager: ObservableObject {
     private let relay: RelayWebSocket
     private var sessionCounter = 0
     private var cancellables = Set<AnyCancellable>()
+    /// IDs of agents that are currently known to be online.
+    /// Used to detect truly new arrivals vs. list refreshes.
+    private var knownAgentIDs = Set<String>()
 
     init(relay: RelayWebSocket) {
         self.relay = relay
 
-        // Auto-create one session per Mac when agents come online.
-        // Skips agents that already have a session (reconnect / duplicate).
+        // Auto-create one session per Mac when an agent first comes online.
+        // A manual agent-list refresh emits the same IDs → no duplicate sessions.
+        // If an agent drops and reconnects its ID re-enters knownAgentIDs → new session.
         relay.$agents
             .receive(on: RunLoop.main)
             .sink { [weak self] agents in
                 guard let self else { return }
-                for agent in agents where agent.connected {
+                let connectedIDs = Set(agents.filter { $0.connected }.map { $0.id })
+                let newIDs = connectedIDs.subtracting(self.knownAgentIDs)
+                self.knownAgentIDs = connectedIDs   // track current set (drops disconnected)
+                for agent in agents where newIDs.contains(agent.id) {
                     if !self.sessions.contains(where: { $0.agent.id == agent.id }) {
                         self.createSession(for: agent)
                     }
@@ -157,6 +165,7 @@ final class SessionManager: ObservableObject {
         relay.onSessionReady = { [weak self] sessionID in
             guard let self = self else { return }
             if let session = self.sessions.first(where: { $0.id == sessionID }) {
+                guard !session.isReady else { return } // already sent initialCommand, skip on reconnect
                 session.isReady = true
                 if let cmd = session.initialCommand {
                     self.relay.sendInput(sessionID: sessionID, data: Data((cmd + "\n").utf8))

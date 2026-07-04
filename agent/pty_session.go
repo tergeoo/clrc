@@ -135,6 +135,14 @@ func (s *PTYSession) Done() <-chan struct{} {
 	return s.doneCh
 }
 
+// Pid returns the PID of the spawned process (0 if not started).
+func (s *PTYSession) Pid() int {
+	if s.cmd.Process == nil {
+		return 0
+	}
+	return s.cmd.Process.Pid
+}
+
 // encodeBinaryFrame creates the wire format: [4B sid_len][sid][data]
 func encodeBinaryFrame(sessionID string, data []byte) []byte {
 	sidBytes := []byte(sessionID)

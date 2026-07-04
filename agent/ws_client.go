@@ -34,24 +34,27 @@ func NewWSClient(cfg Config) *WSClient {
 
 // Run maintains a persistent connection with exponential backoff on failure.
 func (c *WSClient) Run(ctx context.Context) {
+	CleanStaleSessions()
 	backoff := time.Second
-	maxBackoff := 60 * time.Second
+	const maxBackoff = 60 * time.Second
 
 	for {
-		if err := c.connect(ctx); err != nil {
-			if ctx.Err() != nil {
-				return
-			}
-			log.Printf("Connection failed: %v. Retrying in %v...", err, backoff)
-			select {
-			case <-time.After(backoff):
-			case <-ctx.Done():
-				return
-			}
-			backoff = min(backoff*2, maxBackoff)
-		} else {
+		start := time.Now()
+		err := c.connect(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		// Reset backoff if we held a real connection (sleep/wake scenario).
+		if time.Since(start) > 10*time.Second {
 			backoff = time.Second
 		}
+		log.Printf("Connection lost: %v. Retrying in %v...", err, backoff)
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return
+		}
+		backoff = min(backoff*2, maxBackoff)
 	}
 }
 
@@ -80,35 +83,39 @@ func (c *WSClient) connect(ctx context.Context) error {
 	}
 	log.Printf("Registered as agent: %s (%s)", c.cfg.Name, c.cfg.AgentID)
 
+	// connCtx is cancelled when the parent ctx is done OR when a ping fails.
+	// This ensures the read loop exits promptly on sleep/wake or network drop.
+	connCtx, cancelConn := context.WithCancel(ctx)
+	defer cancelConn()
+
 	// Ping goroutine
-	pingCtx, cancelPing := context.WithCancel(ctx)
-	defer cancelPing()
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if err := conn.Ping(pingCtx); err != nil {
-					cancelPing()
+				if err := conn.Ping(connCtx); err != nil {
+					log.Printf("Ping failed: %v — triggering reconnect", err)
+					cancelConn()
 					return
 				}
-			case <-pingCtx.Done():
+			case <-connCtx.Done():
 				return
 			}
 		}
 	}()
 
-	// Read loop
+	// Read loop — exits when connCtx is cancelled (ping failure or shutdown).
 	for {
-		msgType, data, err := conn.Read(ctx)
+		msgType, data, err := conn.Read(connCtx)
 		if err != nil {
 			return err
 		}
 		if msgType == websocket.MessageBinary {
-			c.handleBinary(ctx, data)
+			c.handleBinary(connCtx, data)
 		} else {
-			c.handleText(ctx, data)
+			c.handleText(connCtx, data)
 		}
 	}
 }
@@ -195,6 +202,7 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 	c.sessions[req.SessionID] = sess
 	c.mu.Unlock()
 
+	WriteSess(req.SessionID, sess.Pid(), command)
 	log.Printf("PTY session started: %s (command: %s, %dx%d)", req.SessionID, command, req.Cols, req.Rows)
 
 	// Remove session from map when process exits (but don't kill it — it exits on its own)
@@ -203,6 +211,7 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		c.mu.Lock()
 		delete(c.sessions, req.SessionID)
 		c.mu.Unlock()
+		RemoveSess(req.SessionID)
 		log.Printf("PTY session ended: %s", req.SessionID)
 	}()
 }
