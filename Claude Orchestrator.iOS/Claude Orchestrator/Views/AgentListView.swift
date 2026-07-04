@@ -1,4 +1,5 @@
 import SwiftUI
+import ClrcCore
 
 struct AgentListView: View {
     @EnvironmentObject var relay: RelayWebSocket
@@ -7,7 +8,7 @@ struct AgentListView: View {
 
     // Session picker state
     @State private var selectedAgent: Agent?
-    @State private var existingSessions: [[String: Any]] = []
+    @State private var existingSessions: [RemoteSessionInfo] = []
     @State private var isLoadingSessions = false
 
     var body: some View {
@@ -114,24 +115,10 @@ struct AgentListView: View {
     private func connectTapped(agent: Agent) {
         existingSessions = []
         isLoadingSessions = true
-
-        let requestID = UUID().uuidString
-        relay.onSessionsList = { reqID, sessions in
-            guard reqID == requestID else { return }
-            existingSessions = sessions
+        relay.requestSessionList(agentID: agent.id) { sessions in
+            existingSessions = sessions ?? []
             isLoadingSessions = false
         }
-        relay.requestSessionList(agentID: agent.id, requestID: requestID)
-
-        // Timeout fallback
-        Task {
-            try? await Task.sleep(for: .seconds(3))
-            if isLoadingSessions {
-                isLoadingSessions = false
-            }
-        }
-
-        // Open sheet after setting up the request
         selectedAgent = agent
     }
 }
@@ -140,7 +127,7 @@ struct AgentListView: View {
 
 struct SessionPickerView: View {
     let agent: Agent
-    let existing: [[String: Any]]
+    let existing: [RemoteSessionInfo]
     let isLoading: Bool
     let onPick: (String?) -> Void  // nil = new session
 
@@ -161,25 +148,23 @@ struct SessionPickerView: View {
                 if isLoading {
                     Section("Existing Sessions") {
                         HStack {
-                            ProgressView()
-                                .padding(.trailing, 8)
-                            Text("Loading sessions…")
-                                .foregroundStyle(.secondary)
+                            ProgressView().padding(.trailing, 8)
+                            Text("Loading sessions…").foregroundStyle(.secondary)
                         }
                     }
                 } else if !existing.isEmpty {
                     Section("Existing Sessions") {
-                        ForEach(existing, id: \.sessionID) { (session: [String: Any]) in
+                        ForEach(existing) { session in
                             Button {
-                                onPick(session.sessionID)
+                                onPick(session.id)
                             } label: {
                                 HStack {
                                     Image(systemName: "terminal")
                                         .foregroundStyle(.secondary)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(session.shortID)
-                                            .font(.system(.body, design: .monospaced))
-                                        Text("\(session.cols)×\(session.rows)")
+                                        Text(session.name ?? String(session.id.prefix(8)) + "…")
+                                            .font(.body)
+                                        Text(sessionSubtitle(session))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
@@ -202,6 +187,16 @@ struct SessionPickerView: View {
                 }
             }
         }
+    }
+
+    private func sessionSubtitle(_ session: RemoteSessionInfo) -> String {
+        var parts: [String] = []
+        if let command = session.command { parts.append(command) }
+        if let started = session.started {
+            parts.append("since " + started.formatted(date: .omitted, time: .shortened))
+        }
+        parts.append("\(session.cols)×\(session.rows)")
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -247,17 +242,5 @@ struct AgentRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Helpers
-
-private extension Dictionary where Key == String, Value == Any {
-    var sessionID: String { self["id"] as? String ?? "" }
-    var cols: Int { self["cols"] as? Int ?? 80 }
-    var rows: Int { self["rows"] as? Int ?? 24 }
-    var shortID: String {
-        let id = sessionID
-        return id.count > 8 ? String(id.prefix(8)) + "…" : id
     }
 }

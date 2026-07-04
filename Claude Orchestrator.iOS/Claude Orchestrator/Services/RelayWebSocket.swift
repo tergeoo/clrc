@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import UIKit
+import ClrcCore
 
 /// Used for passing terminal data to a session from the relay.
 typealias SessionDataHandler = (String, Data) -> Void
@@ -32,12 +33,14 @@ final class RelayWebSocket: NSObject, ObservableObject {
     // Callbacks for control events
     var onSessionReady: ((String) -> Void)?
     var onError: ((String) -> Void)?
-    var onSessionsList: ((String, [[String: Any]]) -> Void)?  // requestID, sessions
     /// Called each time the WS successfully connects and auth completes.
     var onConnect: (() -> Void)?
 
     // Pending FS request callbacks — keyed by request_id, consumed once
     private var pendingFSRequests: [String: ([String: Any]) -> Void] = [:]
+
+    // Pending sessions_list callbacks — keyed by request_id, consumed once (nil = timeout)
+    private var pendingSessionListRequests: [String: ([RemoteSessionInfo]?) -> Void] = [:]
 
     // Reconnect / watchdog
     private var reconnectTask: Task<Void, Never>?
@@ -233,9 +236,10 @@ final class RelayWebSocket: NSObject, ObservableObject {
             }
 
         case "sessions_list":
-            if let requestID = payload["request_id"] as? String,
-               let sessions = payload["sessions"] as? [[String: Any]] {
-                onSessionsList?(requestID, sessions)
+            if let requestID = payload["request_id"] as? String {
+                let raw = payload["sessions"] as? [[String: Any]] ?? []
+                let infos = raw.compactMap(RemoteSessionInfo.init(dict:))
+                pendingSessionListRequests.removeValue(forKey: requestID)?(infos)
             }
 
         case "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result":
@@ -270,16 +274,17 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     // MARK: - Send API
 
-    func sendConnect(agentID: String, sessionID: String, cols: Int, rows: Int) {
-        sendJSON([
-            "type": "connect",
-            "payload": [
-                "agent_id": agentID,
-                "session_id": sessionID,
-                "cols": cols,
-                "rows": rows
-            ] as [String: Any]
-        ])
+    func sendConnect(agentID: String, sessionID: String, cols: Int, rows: Int, name: String? = nil) {
+        var payload: [String: Any] = [
+            "agent_id": agentID,
+            "session_id": sessionID,
+            "cols": cols,
+            "rows": rows
+        ]
+        if let name, !name.isEmpty {
+            payload["name"] = name
+        }
+        sendJSON(["type": "connect", "payload": payload])
     }
 
     func sendResize(sessionID: String, cols: Int, rows: Int) {
@@ -355,11 +360,20 @@ final class RelayWebSocket: NSObject, ObservableObject {
                   "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
     }
 
-    func requestSessionList(agentID: String, requestID: String) {
+    /// Requests live sessions from an agent. Completion runs exactly once:
+    /// with the parsed list, or nil after a 3-second timeout.
+    func requestSessionList(agentID: String, completion: @escaping ([RemoteSessionInfo]?) -> Void) {
+        let requestID = UUID().uuidString
+        pendingSessionListRequests[requestID] = completion
         sendJSON([
             "type": "list_sessions",
             "payload": ["agent_id": agentID, "request_id": requestID] as [String: Any]
         ])
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self else { return }
+            self.pendingSessionListRequests.removeValue(forKey: requestID)?(nil)
+        }
     }
 
     private func sendJSON(_ dict: [String: Any]) {
