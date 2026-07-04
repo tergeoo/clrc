@@ -437,7 +437,9 @@ private struct MachineSelectorSheet: View {
             TextField("Session name", text: $renameDraft)
                 .autocorrectionDisabled()
             Button("Save") {
-                sessionToRename?.customName = renameDraft
+                if let session = sessionToRename {
+                    sessionManager.rename(session, to: renameDraft)
+                }
                 sessionToRename = nil
             }
             Button("Cancel", role: .cancel) {
@@ -456,8 +458,7 @@ private struct MachineSelectorSheet: View {
     }
 
     private func closeSession(_ session: TerminalSession) {
-        relay.sendDisconnect(sessionID: session.id)
-        sessionManager.remove(session: session)
+        sessionManager.close(session)
         if selectedSessionID == session.id {
             selectedSessionID = sessionManager.sessions.first?.id
         }
