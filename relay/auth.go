@@ -1,7 +1,9 @@
 package relay
 
 import (
+	"crypto/subtle"
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -9,16 +11,37 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const (
+	// loginMaxAttempts is the number of login attempts allowed per IP per window.
+	loginMaxAttempts = 10
+	loginWindow      = time.Minute
+)
+
 type Auth struct {
 	jwtSecret     []byte
 	adminPassword string
+	loginLimiter  *rateLimiter
 }
 
 func NewAuth(jwtSecret, adminPassword string) *Auth {
+	limiter := newRateLimiter(loginMaxAttempts, loginWindow, time.Now)
+	limiter.startCleanup(5 * time.Minute)
 	return &Auth{
 		jwtSecret:     []byte(jwtSecret),
 		adminPassword: adminPassword,
+		loginLimiter:  limiter,
 	}
+}
+
+// clientIP returns the remote host without the port, for rate-limit keying.
+// X-Forwarded-For is intentionally NOT trusted (it is client-controlled and
+// would let an attacker bypass the limit by rotating the header).
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 type Claims struct {
@@ -82,6 +105,11 @@ func (a *Auth) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !a.loginLimiter.allow(clientIP(r)) {
+		http.Error(w, "too many attempts", http.StatusTooManyRequests)
+		return
+	}
+
 	var req struct {
 		Password string `json:"password"`
 	}
@@ -90,7 +118,8 @@ func (a *Auth) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Password != a.adminPassword {
+	// Constant-time compare avoids leaking the password via response timing.
+	if subtle.ConstantTimeCompare([]byte(req.Password), []byte(a.adminPassword)) != 1 {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
