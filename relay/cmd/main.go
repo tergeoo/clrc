@@ -55,7 +55,25 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("Relay server starting on :%s", port)
+	// Optional native TLS: set both TLS_CERT_FILE and TLS_KEY_FILE to serve
+	// https/wss directly (self-hosted with a real cert). Leave them unset when
+	// TLS is terminated upstream (Railway/fly.io, Cloudflare Tunnel) or when the
+	// relay is only reachable over an encrypted private network (Tailscale).
+	certFile := os.Getenv("TLS_CERT_FILE")
+	keyFile := os.Getenv("TLS_KEY_FILE")
+	if (certFile == "") != (keyFile == "") {
+		log.Fatal("TLS_CERT_FILE and TLS_KEY_FILE must be set together")
+	}
+
+	if certFile != "" {
+		log.Printf("Relay server starting on :%s (TLS)", port)
+		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
+			log.Fatalf("Server error: %v", err)
+		}
+		return
+	}
+
+	log.Printf("Relay server starting on :%s (plaintext — use TLS or a private network if internet-exposed)", port)
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}

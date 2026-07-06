@@ -97,7 +97,7 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 ### Required relay env vars (`relay/cmd/main.go` fails fast if missing)
 
-`JWT_SECRET`, `ADMIN_PASSWORD`, `AGENT_SECRET`. Optional `PORT` (default `8080`).
+`JWT_SECRET`, `ADMIN_PASSWORD`, `AGENT_SECRET`. Optional `PORT` (default `8080`). Optional `TLS_CERT_FILE` + `TLS_KEY_FILE` (set both) → relay serves https/wss directly via `ListenAndServeTLS`; leave unset when TLS is terminated upstream (Railway/Cloudflare) or the relay is only on a private network (Tailscale). Remote-access topologies: `docs/REMOTE-ACCESS.md`.
 
 ## Conventions / constraints
 
