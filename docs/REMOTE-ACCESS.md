@@ -41,17 +41,44 @@ it. This is the smallest, safest setup for your topology.
 Puts a public `https://…` (and thus `wss://…`) in front of the Mac's relay with
 TLS handled by Cloudflare — no home-router port-forwarding, no cert management.
 
-**Setup**
-1. `brew install cloudflared`, then `cloudflared tunnel login`.
-2. `cloudflared tunnel --url http://localhost:8080` for a quick
-   `https://<random>.trycloudflare.com`, **or** create a named tunnel bound to a
-   domain you own (see Cloudflare docs) for a stable hostname.
-3. In the iPhone app set the relay URL to the `https://…` hostname. The app
-   auto-upgrades `https`→`wss` for the socket.
+**Quick (throwaway hostname):** `brew install cloudflared` then
+`cloudflared tunnel --url http://localhost:8080` prints a
+`https://<random>.trycloudflare.com` for as long as it runs.
 
-**Trade-off:** needs a (free) Cloudflare account; the relay is now reachable by
-anyone who learns the hostname — but the relay hardening (rate-limit, JWT,
-agent secret) is your gate, so keep `ADMIN_PASSWORD` strong.
+**Named tunnel bound to your own domain (stable, recommended):**
+Prerequisite — the domain must use Cloudflare as its DNS (add the site in the
+Cloudflare dashboard and switch its nameservers first).
+
+```sh
+brew install cloudflared
+cloudflared tunnel login                       # pick your zone in the browser
+cloudflared tunnel create clrc                 # writes ~/.cloudflared/<UUID>.json
+cloudflared tunnel route dns clrc clrc.example.com   # your subdomain
+```
+
+Create `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: <UUID-from-create>
+credentials-file: /Users/<you>/.cloudflared/<UUID>.json
+ingress:
+  - hostname: clrc.example.com
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+Test with `cloudflared tunnel run clrc`, then install it to start on boot:
+`sudo cloudflared service install`.
+
+Point the iPhone app's relay URL at `https://clrc.example.com` (the app
+auto-upgrades `https`→`wss`). **Leave the local agent on `ws://localhost:8080`**
+— it's on the same Mac and does not need to go through the tunnel.
+
+**Trade-off:** the relay is now reachable by anyone who learns the hostname — the
+relay hardening (login rate-limit, JWT, agent secret) is your gate, so use a
+strong random `ADMIN_PASSWORD` and `AGENT_SECRET`. For a second layer, put
+**Cloudflare Access** (email OTP / SSO) in front of the hostname so the login
+page isn't even reachable without passing Cloudflare first.
 
 ---
 
