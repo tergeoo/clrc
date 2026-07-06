@@ -21,8 +21,12 @@ func sessDir() string {
 	return filepath.Join(dir, "clrc", "sessions")
 }
 
-// WriteSess persists a session entry to disk.
+// WriteSess persists a session entry to disk. The id is used as the filename,
+// so a non-UUID id is rejected to prevent path traversal.
 func WriteSess(id string, pid int, command, name string) {
+	if !validSessionID(id) {
+		return
+	}
 	_ = os.MkdirAll(sessDir(), 0700)
 	info := SessionInfo{ID: id, PID: pid, Command: command, Name: name, Started: time.Now()}
 	data, _ := json.Marshal(info)
@@ -32,6 +36,9 @@ func WriteSess(id string, pid int, command, name string) {
 // RenameSess updates the stored display name of a session, keeping other fields.
 // Missing or unreadable entries are ignored.
 func RenameSess(id, name string) {
+	if !validSessionID(id) {
+		return
+	}
 	path := filepath.Join(sessDir(), id+".json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -48,6 +55,9 @@ func RenameSess(id, name string) {
 
 // RemoveSess deletes a session entry from disk.
 func RemoveSess(id string) {
+	if !validSessionID(id) {
+		return
+	}
 	_ = os.Remove(filepath.Join(sessDir(), id+".json"))
 }
 

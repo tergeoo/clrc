@@ -218,6 +218,10 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		log.Printf("Invalid connect payload: %v", err)
 		return
 	}
+	if !validSessionID(req.SessionID) {
+		log.Printf("Rejecting connect with invalid session id: %q", req.SessionID)
+		return
+	}
 	req.Name = sanitizeSessionName(req.Name)
 
 	// Check if session already exists — reattach instead of creating new PTY
