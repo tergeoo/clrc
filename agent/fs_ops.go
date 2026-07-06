@@ -2,10 +2,12 @@ package agent
 
 import (
 	"encoding/base64"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -19,24 +21,47 @@ type FSEntry struct {
 
 const maxReadBytes = 100 * 1024 // 100 KB cap for file preview
 
-// fsResolve expands ~ and cleans the path.
-func fsResolve(path string) string {
-	if path == "~" {
-		if home, err := os.UserHomeDir(); err == nil {
-			return home
-		}
+// errOutsideHome is returned when a resolved path escapes the user's home dir.
+var errOutsideHome = errors.New("path is outside the home directory")
+
+// fsResolve expands ~, cleans the path, and confines the result to the user's
+// home directory. Every filesystem op goes through this, so a client can never
+// read, create, or delete anything outside the home dir. Deliberate — see CLAUDE.md.
+func fsResolve(path string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
 	}
-	if len(path) >= 2 && path[:2] == "~/" {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, path[2:])
-		}
+
+	switch {
+	case path == "~":
+		path = home
+	case strings.HasPrefix(path, "~/"):
+		path = filepath.Join(home, path[2:])
 	}
-	return filepath.Clean(path)
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	clean := filepath.Clean(abs)
+
+	rel, err := filepath.Rel(home, clean)
+	if err != nil {
+		return "", errOutsideHome
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", errOutsideHome
+	}
+	return clean, nil
 }
 
 // fsListDir lists a directory; returns resolved path + entries sorted dirs-first.
 func fsListDir(path string) (resolved string, entries []FSEntry, err error) {
-	resolved = fsResolve(path)
+	resolved, err = fsResolve(path)
+	if err != nil {
+		return "", nil, err
+	}
 	dirEntries, err := os.ReadDir(resolved)
 	if err != nil {
 		return resolved, nil, err
@@ -65,17 +90,29 @@ func fsListDir(path string) (resolved string, entries []FSEntry, err error) {
 
 // fsMkdir creates a directory (with parents).
 func fsMkdir(path string) error {
-	return os.MkdirAll(fsResolve(path), 0755)
+	resolved, err := fsResolve(path)
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(resolved, 0755)
 }
 
 // fsDelete removes a file or directory recursively.
 func fsDelete(path string) error {
-	return os.RemoveAll(fsResolve(path))
+	resolved, err := fsResolve(path)
+	if err != nil {
+		return err
+	}
+	return os.RemoveAll(resolved)
 }
 
 // fsRead reads up to maxReadBytes, returns base64-encoded content.
 func fsRead(path string) (string, error) {
-	f, err := os.Open(fsResolve(path))
+	resolved, err := fsResolve(path)
+	if err != nil {
+		return "", err
+	}
+	f, err := os.Open(resolved)
 	if err != nil {
 		return "", err
 	}
