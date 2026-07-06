@@ -188,6 +188,20 @@ func (h *Hub) GetAgent(id string) (*AgentConn, bool) {
 	return a, ok
 }
 
+// AgentCount returns the number of connected agents.
+func (h *Hub) AgentCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.agents)
+}
+
+// ClientCount returns the number of connected clients.
+func (h *Hub) ClientCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 // CreateSession registers a new session.
 func (h *Hub) CreateSession(sessionID string, agent *AgentConn, client *ClientConn) {
 	h.mu.Lock()
@@ -262,6 +276,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+	conn.SetReadLimit(maxMessageBytes)
 
 	ctx := r.Context()
 
@@ -290,6 +305,16 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 
 	if reg.Secret != agentSecret {
 		conn.Close(websocket.StatusPolicyViolation, "invalid secret")
+		return
+	}
+
+	if len(reg.AgentID) > maxAgentIDLen || !validAgentID(reg.AgentID) || len(reg.Name) > maxAgentNameLen {
+		conn.Close(websocket.StatusPolicyViolation, "invalid agent identity")
+		return
+	}
+
+	if hub.AgentCount() >= maxAgents {
+		conn.Close(websocket.StatusTryAgainLater, "agent limit reached")
 		return
 	}
 
@@ -353,6 +378,7 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+	conn.SetReadLimit(maxMessageBytes)
 
 	ctx := r.Context()
 
@@ -378,6 +404,11 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 
 	if _, err := auth.ValidateAccessToken(authPayload.Token); err != nil {
 		conn.Close(websocket.StatusPolicyViolation, "invalid token")
+		return
+	}
+
+	if hub.ClientCount() >= maxClients {
+		conn.Close(websocket.StatusTryAgainLater, "client limit reached")
 		return
 	}
 
@@ -487,6 +518,15 @@ func handleClientConnect(ctx context.Context, msg Message, client *ClientConn, h
 		Rows      uint16 `json:"rows"`
 	}
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		return
+	}
+
+	if !validSessionID(payload.SessionID) {
+		errMsg, _ := json.Marshal(Message{
+			Type:    "error",
+			Payload: mustMarshal(map[string]string{"message": "invalid session id"}),
+		})
+		conn.Write(ctx, websocket.MessageText, errMsg)
 		return
 	}
 
