@@ -280,8 +280,11 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 
 	ctx := r.Context()
 
-	// First message must be "register"
-	_, rawMsg, err := conn.Read(ctx)
+	// First message must be "register" — bounded so an idle unauthenticated
+	// socket cannot linger (it would never be counted by the connection caps).
+	handshakeCtx, cancelHandshake := context.WithTimeout(ctx, 10*time.Second)
+	_, rawMsg, err := conn.Read(handshakeCtx)
+	cancelHandshake()
 	if err != nil {
 		log.Printf("Agent register read error: %v", err)
 		return
@@ -382,8 +385,11 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 
 	ctx := r.Context()
 
-	// First message must be "auth"
-	_, rawMsg, err := conn.Read(ctx)
+	// First message must be "auth" — bounded so an idle unauthenticated socket
+	// cannot linger (it would never be counted by the connection caps).
+	handshakeCtx, cancelHandshake := context.WithTimeout(ctx, 10*time.Second)
+	_, rawMsg, err := conn.Read(handshakeCtx)
+	cancelHandshake()
 	if err != nil {
 		return
 	}

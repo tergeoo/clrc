@@ -24,9 +24,10 @@ const maxReadBytes = 100 * 1024 // 100 KB cap for file preview
 // errOutsideHome is returned when a resolved path escapes the user's home dir.
 var errOutsideHome = errors.New("path is outside the home directory")
 
-// fsResolve expands ~, cleans the path, and confines the result to the user's
-// home directory. Every filesystem op goes through this, so a client can never
-// read, create, or delete anything outside the home dir. Deliberate — see CLAUDE.md.
+// fsResolve expands ~, cleans the path, resolves symlinks on the existing
+// portion, and confines the result to the user's home directory. Every
+// filesystem op goes through this, so a client cannot read, create, or delete
+// outside the home dir — including via a symlink inside it. Deliberate — see CLAUDE.md.
 func fsResolve(path string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -46,14 +47,47 @@ func fsResolve(path string) (string, error) {
 	}
 	clean := filepath.Clean(abs)
 
-	rel, err := filepath.Rel(home, clean)
+	// Resolve symlinks on the longest existing ancestor so a symlink inside the
+	// home dir (e.g. ~/link -> /etc) cannot redirect an op outside it. The leaf
+	// may not exist yet (mkdir/create), so we resolve what exists and re-append.
+	resolved := resolveExisting(clean)
+
+	realHome := home
+	if rh, err := filepath.EvalSymlinks(home); err == nil {
+		realHome = rh
+	}
+
+	if !withinDir(realHome, resolved) {
+		return "", errOutsideHome
+	}
+	return resolved, nil
+}
+
+// resolveExisting resolves symlinks on the longest existing prefix of p and
+// re-joins the non-existent remainder.
+func resolveExisting(p string) string {
+	remainder := ""
+	cur := p
+	for {
+		if real, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(real, remainder)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return p // reached the root without an existing ancestor
+		}
+		remainder = filepath.Join(filepath.Base(cur), remainder)
+		cur = parent
+	}
+}
+
+// withinDir reports whether target is dir itself or nested under it.
+func withinDir(dir, target string) bool {
+	rel, err := filepath.Rel(dir, target)
 	if err != nil {
-		return "", errOutsideHome
+		return false
 	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", errOutsideHome
-	}
-	return clean, nil
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // fsListDir lists a directory; returns resolved path + entries sorted dirs-first.

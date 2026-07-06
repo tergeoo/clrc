@@ -66,3 +66,22 @@ func TestFSOpsRejectOutsideHome(t *testing.T) {
 		t.Errorf("fsMkdir(~/inside) should succeed, got %v", err)
 	}
 }
+
+// A symlink inside home pointing outside must not let ops escape via it.
+func TestFSResolveSymlinkEscapeRejected(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	outside := t.TempDir() // a sibling temp dir, not under home
+	link := filepath.Join(home, "escape")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unsupported: %v", err)
+	}
+
+	if _, err := fsResolve("~/escape/secret"); err == nil {
+		t.Error("fsResolve through an outward symlink should be rejected")
+	}
+	if _, _, err := fsListDir("~/escape"); err == nil {
+		t.Error("fsListDir through an outward symlink should be rejected")
+	}
+}
