@@ -15,3 +15,7 @@ public enum AgentError: Error, Equatable {
     case configFailed
     case startFailed
 }
+
+public enum RelayError: Error, Equatable {
+    case loadFailed
+}
