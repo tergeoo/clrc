@@ -10,14 +10,25 @@ public protocol HealthChecker: Sendable {
 public struct DiskFileWriter: FileWriter {
     public init() {}
     public func write(_ path: String, _ contents: String, mode: Int16) throws {
-        let fm = FileManager.default
-        // Remove any existing file so createFile applies our attributes to a fresh node.
-        if fm.fileExists(atPath: path) { try fm.removeItem(atPath: path) }
-        guard fm.createFile(atPath: path,
-                            contents: Data(contents.utf8),
-                            attributes: [.posixPermissions: mode]) else {
-            throw NSError(domain: "clrc", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "failed to write \(path)"])
+        // Create with the exact mode so the file never exists at a looser permission.
+        let fd = open(path, O_CREAT | O_WRONLY | O_TRUNC, mode_t(mode))
+        guard fd >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+                          userInfo: [NSLocalizedDescriptionKey: "open(\(path)) failed"])
+        }
+        defer { close(fd) }
+        // Guarantee the exact mode regardless of umask.
+        guard fchmod(fd, mode_t(mode)) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+                          userInfo: [NSLocalizedDescriptionKey: "fchmod(\(path)) failed"])
+        }
+        let data = Data(contents.utf8)
+        let written = data.withUnsafeBytes { ptr -> Int in
+            Foundation.write(fd, ptr.baseAddress, data.count)
+        }
+        guard written == data.count else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+                          userInfo: [NSLocalizedDescriptionKey: "short write to \(path)"])
         }
     }
 }
