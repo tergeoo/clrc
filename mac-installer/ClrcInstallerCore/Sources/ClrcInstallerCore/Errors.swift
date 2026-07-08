@@ -5,3 +5,8 @@ public enum TokenError: Error, Equatable {
     case unsupportedVersion(Int)
     case expired
 }
+
+public enum TailscaleError: Error, Equatable {
+    case authFailed
+    case badIP(String)
+}
