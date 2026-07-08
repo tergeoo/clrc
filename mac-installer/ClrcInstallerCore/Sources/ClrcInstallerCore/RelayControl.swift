@@ -10,8 +10,15 @@ public protocol HealthChecker: Sendable {
 public struct DiskFileWriter: FileWriter {
     public init() {}
     public func write(_ path: String, _ contents: String, mode: Int16) throws {
-        try contents.write(toFile: path, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: path)
+        let fm = FileManager.default
+        // Remove any existing file so createFile applies our attributes to a fresh node.
+        if fm.fileExists(atPath: path) { try fm.removeItem(atPath: path) }
+        guard fm.createFile(atPath: path,
+                            contents: Data(contents.utf8),
+                            attributes: [.posixPermissions: mode]) else {
+            throw NSError(domain: "clrc", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "failed to write \(path)"])
+        }
     }
 }
 
