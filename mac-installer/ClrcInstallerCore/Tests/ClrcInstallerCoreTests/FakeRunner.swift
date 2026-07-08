@@ -10,6 +10,9 @@ actor FakeRunner: CommandRunner {
     func script(tool: String, args: [String], result: CommandResult) {
         scripted[Key(tool: tool, args: args)] = result
     }
+    func setFallback(_ result: CommandResult) {
+        fallback = result
+    }
     func run(_ tool: String, _ args: [String], stdin: String?) async throws -> CommandResult {
         calls.append((tool, args))
         return scripted[Key(tool: tool, args: args)] ?? fallback
