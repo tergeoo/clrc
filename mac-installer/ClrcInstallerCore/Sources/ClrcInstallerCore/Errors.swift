@@ -10,3 +10,8 @@ public enum TailscaleError: Error, Equatable {
     case authFailed
     case badIP(String)
 }
+
+public enum AgentError: Error, Equatable {
+    case configFailed
+    case startFailed
+}
