@@ -81,6 +81,12 @@ final class WizardModel: ObservableObject {
                                           secret: secrets.agentSecret, name: hostname)
                 try await agent.start()
 
+                // Optional iCloud sync (off by default; see SettingsView).
+                if UserDefaults.standard.bool(forKey: "iCloudSyncEnabled") {
+                    try? ICloudSync.save(HubDescriptor(relayIP: ip, agentSecret: secrets.agentSecret),
+                                         to: UbiquitousKV())
+                }
+
                 phase = .done(role: "hub")
             } catch {
                 phase = .failed(Self.describe(error))

@@ -31,5 +31,9 @@ struct ClrcApp: App {
             SetupWizard(model: wizard)
         }
         .windowResizability(.contentSize)
+
+        Settings {
+            SettingsView()
+        }
     }
 }

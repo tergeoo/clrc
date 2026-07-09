@@ -85,9 +85,11 @@ dev: relay-init agent-init
 
 # ── App bundle ────────────────────────────────────────────────────────────────
 
-## Build "CLRC.app" — double-clickable macOS app
-app: build-agent
-	@sh scripts/make-app.sh /tmp/clrc
+## Build the clrc menu-bar installer app (Xcode)
+app:
+	@sh mac-installer/scripts/build-clrc-universal.sh
+	@cd mac-installer/Clrc && xcodebuild -scheme Clrc -configuration Release -derivedDataPath build build
+	@echo "Built: mac-installer/Clrc/build/Build/Products/Release/Clrc.app"
 
 # ── Installation ──────────────────────────────────────────────────────────────
 

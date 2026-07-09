@@ -38,6 +38,7 @@ struct MenuBarView: View {
             Button("Add another Mac…") { showAddMac = true }
                 .disabled((model.relayIP ?? "").isEmpty)
             Button("Setup…") { openSetup() }
+            SettingsLink { Text("Settings…") }
 
             Divider()
 
