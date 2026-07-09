@@ -1,0 +1,4 @@
+# Universal binaries produced by scripts/build-clrc-universal.sh — build
+# products, regenerated on demand, never committed.
+clrc
+claude-relay
