@@ -58,6 +58,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showScanner = false
 
     var body: some View {
         NavigationView {
@@ -67,6 +68,12 @@ struct LoginView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
+
+                    Button {
+                        showScanner = true
+                    } label: {
+                        Label("Scan pairing QR", systemImage: "qrcode.viewfinder")
+                    }
                 }
 
                 Section(header: Text("Auth")) {
@@ -101,6 +108,12 @@ struct LoginView: View {
                 }
             }
             .navigationTitle("Claude Terminal")
+            .sheet(isPresented: $showScanner) {
+                ScanToPairView { info in
+                    serverURL = info.relay
+                    password = info.password
+                }
+            }
         }
     }
 
