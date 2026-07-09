@@ -13,6 +13,14 @@ iPhone ──WebSocket──▶ Relay ◀──WebSocket── clrc (Mac daemon)
 
 ## Install agent (Mac)
 
+> **Coming soon — menu-bar installer app.** A one-click SwiftUI menu-bar app
+> (`mac-installer/`) sets up everything over [Tailscale](docs/REMOTE-ACCESS.md):
+> the first Mac becomes the hub (relay + agent, generates an iPhone pairing QR
+> and a join token), other Macs join by pasting the token, no manual secret
+> entry. The tested logic core (`mac-installer/ClrcInstallerCore`, `swift test`)
+> is done; the app shell, signing, and `brew install --cask clrc-app` packaging
+> are in progress. Until then, use the manual options below.
+
 ### Option 1 — one-liner
 
 ```sh

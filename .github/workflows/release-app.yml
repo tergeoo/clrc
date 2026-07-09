@@ -1,0 +1,101 @@
+name: Release macOS Installer App
+
+# Builds, signs, notarizes the ClrcInstaller.app and attaches ClrcInstaller.dmg
+# to the release. This is a SEPARATE, self-gating workflow: it no-ops unless
+# BOTH (a) the Xcode project exists and (b) the signing secret is configured,
+# so it can never break the main `release.yml` pipeline.
+#
+# Required repository secrets (set once, then this activates automatically):
+#   MACOS_CERT_P12        base64 of the "Developer ID Application" .p12
+#   MACOS_CERT_PASSWORD   password for that .p12
+#   KEYCHAIN_PASSWORD     any throwaway password for the temp CI keychain
+#   NOTARY_APPLE_ID       Apple ID email used for notarization
+#   NOTARY_TEAM_ID        3ZZ5K4QUDG
+#   NOTARY_PASSWORD       app-specific password for notarization
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    name: Gate (skip unless project + secrets present)
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          CERT: ${{ secrets.MACOS_CERT_P12 }}
+        run: |
+          if [ -e "mac-installer/ClrcInstaller/ClrcInstaller.xcodeproj/project.pbxproj" ] && [ -n "$CERT" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping app build: Xcode project or MACOS_CERT_P12 not present yet."
+          fi
+
+  build-app:
+    name: Build + sign + notarize app
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build universal clrc + claude-relay
+        run: sh mac-installer/scripts/build-clrc-universal.sh "${{ github.ref_name }}"
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/clrc-signing.keychain-db"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Build Release app
+        working-directory: mac-installer/ClrcInstaller
+        run: |
+          xcodebuild -scheme ClrcInstaller -configuration Release \
+            -derivedDataPath build -destination 'platform=macOS' build
+
+      - name: Sign, package, notarize DMG
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+        run: |
+          APP=$(find mac-installer/ClrcInstaller/build -name 'ClrcInstaller.app' -maxdepth 6 | head -1)
+          codesign --force --deep --options runtime --timestamp \
+            --sign "Developer ID Application" "$APP"
+          codesign --verify --strict --verbose=2 "$APP"
+          hdiutil create -volname "clrc" -srcfolder "$APP" -ov -format UDZO ClrcInstaller.dmg
+          xcrun notarytool submit ClrcInstaller.dmg \
+            --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" \
+            --password "$NOTARY_PASSWORD" --wait
+          xcrun stapler staple ClrcInstaller.dmg
+
+      - name: Attach DMG to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ClrcInstaller.dmg

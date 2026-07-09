@@ -19,6 +19,14 @@ iPhone (SwiftUI) ──WS──▶ Relay (Go) ◀──WS── clrc agent (Go d
   file browser. Testable session logic lives in the local SwiftPM package
   `Claude Orchestrator.iOS/ClrcCore` (`swift test`); the app persists sessions locally and
   auto-reattaches to live PTYs on launch.
+- **`mac-installer/`** — one-click macOS menu-bar installer (Tailscale topology).
+  `ClrcInstallerCore` is a standalone SwiftPM package holding all the tested logic
+  behind a mockable `CommandRunner` boundary (join/pair `clrc://` deep links,
+  CSPRNG secrets + Keychain, Tailscale/agent/relay orchestration, hub & satellite
+  setup state machines, iCloud sync) — `swift test`. The SwiftUI app shell
+  (`ClrcInstaller`, Xcode project) and distribution scripts live alongside; the
+  app shell, iOS scan-to-pair, signing/notarization, and `clrc-app` cask are still
+  to be built. Design/plan: `docs/superpowers/{specs,plans}/2026-07-08-mac-installer*`.
 
 > Naming note: the product is **clrc**, but the repo dir, Go module paths (`github.com/claude-orchestrator/...`), and the iOS folder still use the older "claude-orchestrator" / "Claude Orchestrator" name. The CLI binary is `clrc`.
 
