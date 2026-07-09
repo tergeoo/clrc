@@ -11,7 +11,7 @@ set -e
 
 VERSION="${1:-dev}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-OUT="$ROOT/mac-installer/ClrcInstaller/Resources"
+OUT="$ROOT/mac-installer/Clrc/Clrc/Resources"
 LDFLAGS="-s -w -X main.version=$VERSION"
 
 mkdir -p "$OUT"
