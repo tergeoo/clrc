@@ -1,6 +1,6 @@
 name: Release macOS Installer App
 
-# Builds, signs, notarizes the ClrcInstaller.app and attaches ClrcInstaller.dmg
+# Builds, signs, notarizes the Clrc.app and attaches Clrc.dmg
 # to the release. This is a SEPARATE, self-gating workflow: it no-ops unless
 # BOTH (a) the Xcode project exists and (b) the signing secret is configured,
 # so it can never break the main `release.yml` pipeline.
@@ -34,7 +34,7 @@ jobs:
         env:
           CERT: ${{ secrets.MACOS_CERT_P12 }}
         run: |
-          if [ -e "mac-installer/ClrcInstaller/ClrcInstaller.xcodeproj/project.pbxproj" ] && [ -n "$CERT" ]; then
+          if [ -e "mac-installer/Clrc/Clrc.xcodeproj/project.pbxproj" ] && [ -n "$CERT" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -74,9 +74,9 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
 
       - name: Build Release app
-        working-directory: mac-installer/ClrcInstaller
+        working-directory: mac-installer/Clrc
         run: |
-          xcodebuild -scheme ClrcInstaller -configuration Release \
+          xcodebuild -scheme Clrc -configuration Release \
             -derivedDataPath build -destination 'platform=macOS' build
 
       - name: Sign, package, notarize DMG
@@ -85,17 +85,17 @@ jobs:
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
           NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
         run: |
-          APP=$(find mac-installer/ClrcInstaller/build -name 'ClrcInstaller.app' -maxdepth 6 | head -1)
+          APP=$(find mac-installer/Clrc/build -name 'Clrc.app' -maxdepth 6 | head -1)
           codesign --force --deep --options runtime --timestamp \
             --sign "Developer ID Application" "$APP"
           codesign --verify --strict --verbose=2 "$APP"
-          hdiutil create -volname "clrc" -srcfolder "$APP" -ov -format UDZO ClrcInstaller.dmg
-          xcrun notarytool submit ClrcInstaller.dmg \
+          hdiutil create -volname "clrc" -srcfolder "$APP" -ov -format UDZO Clrc.dmg
+          xcrun notarytool submit Clrc.dmg \
             --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" \
             --password "$NOTARY_PASSWORD" --wait
-          xcrun stapler staple ClrcInstaller.dmg
+          xcrun stapler staple Clrc.dmg
 
       - name: Attach DMG to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ClrcInstaller.dmg
+          files: Clrc.dmg

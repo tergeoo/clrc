@@ -1,7 +1,7 @@
 #!/bin/sh
-# Sign, notarize, and package the ClrcInstaller app into a distributable .dmg.
+# Sign, notarize, and package the Clrc app into a distributable .dmg.
 #
-# Usage: sh mac-installer/scripts/package-app.sh /path/to/ClrcInstaller.app [OUT_DMG]
+# Usage: sh mac-installer/scripts/package-app.sh /path/to/Clrc.app [OUT_DMG]
 #
 # Prerequisites (one-time, on the signing Mac):
 #   1. A "Developer ID Application" certificate in the login keychain
@@ -17,10 +17,10 @@
 set -e
 
 APP="$1"
-[ -n "$APP" ] || { echo "usage: package-app.sh /path/to/ClrcInstaller.app [OUT_DMG]" >&2; exit 2; }
+[ -n "$APP" ] || { echo "usage: package-app.sh /path/to/Clrc.app [OUT_DMG]" >&2; exit 2; }
 [ -d "$APP" ] || { echo "error: $APP not found" >&2; exit 1; }
 
-OUT_DMG="${2:-ClrcInstaller.dmg}"
+OUT_DMG="${2:-Clrc.dmg}"
 IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application}"
 PROFILE="${NOTARY_PROFILE:-clrc-notary}"
 
