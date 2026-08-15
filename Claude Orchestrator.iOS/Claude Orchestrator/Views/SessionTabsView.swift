@@ -439,6 +439,11 @@ private struct MachineSelectorSheet: View {
                                 selectedSessionID = chat.id
                                 onDismiss()
                             }
+                            .swipeActions(edge: .trailing) {
+                                Button("Close", role: .destructive) {
+                                    closeChatSession(chat)
+                                }
+                            }
                         }
                     } header: {
                         Label(
@@ -567,6 +572,13 @@ private struct MachineSelectorSheet: View {
             selectedSessionID = sessionManager.sessions.first?.id
         }
     }
+
+    private func closeChatSession(_ session: ChatSession) {
+        sessionManager.closeChat(session)
+        if selectedSessionID == session.id {
+            selectedSessionID = sessionManager.sessions.first?.id ?? sessionManager.chatSessions.first?.id
+        }
+    }
 }
 
 // MARK: - AgentSelectorRow
@@ -687,7 +699,7 @@ private struct SessionRowView: View {
 
 // MARK: - ChatSessionRowView
 // Mirrors SessionRowView's style for chat sessions in the machine selector.
-// Rename/close are intentionally not offered here — out of scope for this pass.
+// Close is wired via swipeActions above (I1); rename is still out of scope.
 
 private struct ChatSessionRowView: View {
     @ObservedObject var session: ChatSession
