@@ -7,7 +7,7 @@ if [ "${FAKE_CLAUDE_MODE:-normal}" = "exit1" ]; then
   echo '{"type":"system","subtype":"init","session_id":"s"}'
   exit 1
 fi
-while IFS= read -r _line; do
+while IFS= read -r _line || [ -n "$_line" ]; do
   echo '{"type":"system","subtype":"init","session_id":"s","model":"m"}'
   echo '{"type":"system","subtype":"thinking_tokens","estimated_tokens":3}'
   if [ "${FAKE_CLAUDE_MODE:-normal}" = "badline" ]; then
