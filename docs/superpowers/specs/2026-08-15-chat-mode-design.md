@@ -101,13 +101,16 @@ Backward compatibility is by omission: an old client sends no `kind`, and the ag
 `chat_event` carries one normalised event; `chat_history_result` carries `{request_id, events[], next_seq}`.
 
 ```jsonc
-{"kind":"turn_start",  "seq":1, "ts":"..."}
-{"kind":"text",        "seq":2, "ts":"...", "text":"..."}
-{"kind":"tool_use",    "seq":3, "ts":"...", "tool_id":"...", "name":"Bash", "input":"...", "truncated":false}
-{"kind":"tool_result", "seq":4, "ts":"...", "tool_id":"...", "ok":true, "output":"...", "truncated":true}
-{"kind":"turn_end",    "seq":5, "ts":"...", "num_turns":1, "cost_usd":0.049, "duration_ms":4877, "stop_reason":"end_turn"}
-{"kind":"error",       "seq":6, "ts":"...", "message":"..."}
+{"kind":"user_text",   "seq":1, "ts":"...", "text":"..."}
+{"kind":"turn_start",  "seq":2, "ts":"..."}
+{"kind":"text",        "seq":3, "ts":"...", "text":"..."}
+{"kind":"tool_use",    "seq":4, "ts":"...", "tool_id":"...", "name":"Bash", "input":"...", "truncated":false}
+{"kind":"tool_result", "seq":5, "ts":"...", "tool_id":"...", "ok":true, "output":"...", "truncated":true}
+{"kind":"turn_end",    "seq":6, "ts":"...", "num_turns":1, "cost_usd":0.049, "duration_ms":4877, "stop_reason":"end_turn"}
+{"kind":"error",       "seq":7, "ts":"...", "message":"..."}
 ```
+
+`user_text` is synthesised by the agent itself, from `ChatSession.Send`, right before it writes to the CLI's stdin — the CLI never echoes what it was sent, so without this the user's own half of the conversation would never appear, live or on replay. A `turn_end` with `stop_reason:"interrupted"` is likewise synthesised by the agent (from `Interrupt`) rather than emitted by the CLI, since a killed process produces no `result` line of its own.
 
 `seq` is a monotonic per-session counter. It is what makes reconnection correct: the client reports the highest `seq` it holds, the agent sends only the tail. No duplicates, no gaps, no races.
 
