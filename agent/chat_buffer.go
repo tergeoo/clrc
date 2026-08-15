@@ -1,6 +1,9 @@
 package agent
 
-import "sync"
+import (
+	"encoding/json"
+	"sync"
+)
 
 // defaultChatBufferSize is how many recent events a chat session retains for
 // replay after a client reconnects.
@@ -62,4 +65,39 @@ func (b *ChatBuffer) NextSeq() uint64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.next
+}
+
+// SincePage returns retained events with Seq > afterSeq, capped to at most
+// maxBytes of JSON-encoded payload. The ring holds up to defaultChatBufferSize
+// events at up to a few KB each, so a full replay of Since(afterSeq) can
+// reach several MB — comfortably over both the relay's message-size limit
+// and a client's own read limit. nextSeq is the seq the caller should pass
+// as afterSeq on its next call: the seq of the last event actually returned,
+// if the page was cut short, or NextSeq() if every retained event fit (the
+// caller is fully caught up). The first event of a page is always included
+// even if it alone would exceed maxBytes, so a pathologically large single
+// event cannot stall pagination — every call makes forward progress.
+func (b *ChatBuffer) SincePage(afterSeq uint64, maxBytes int) (events []ChatEvent, nextSeq uint64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	all := make([]ChatEvent, 0, len(b.ring))
+	for _, e := range b.ring {
+		if e.Seq > afterSeq {
+			all = append(all, e)
+		}
+	}
+
+	size := 0
+	for i, e := range all {
+		encoded, err := json.Marshal(e)
+		if err != nil {
+			continue
+		}
+		if i > 0 && size+len(encoded) > maxBytes {
+			return all[:i], all[i-1].Seq
+		}
+		size += len(encoded)
+	}
+	return all, b.next
 }

@@ -401,6 +401,14 @@ func (c *WSClient) handleChatInterrupt(payload json.RawMessage) {
 	}
 }
 
+// chatHistoryPageBytes caps one chat_history_result batch well under both
+// the relay's 4 MB message limit and the iOS client's own default 1 MiB read
+// limit — the ring can hold up to defaultChatBufferSize events at up to a
+// few KB each, so an unbounded replay could exceed either and, worse, get
+// the agent's whole connection closed by the relay's SetReadLimit, dropping
+// every session on the Mac.
+const chatHistoryPageBytes = 256 * 1024
+
 func (c *WSClient) handleChatHistory(ctx context.Context, payload json.RawMessage) {
 	var req struct {
 		SessionID string `json:"session_id"`
@@ -413,8 +421,7 @@ func (c *WSClient) handleChatHistory(ctx context.Context, payload json.RawMessag
 	events := []ChatEvent{}
 	var nextSeq uint64 = 1
 	if sess := c.chatSession(req.SessionID); sess != nil {
-		events = sess.History(req.AfterSeq)
-		nextSeq = sess.NextSeq()
+		events, nextSeq = sess.HistoryPage(req.AfterSeq, chatHistoryPageBytes)
 	}
 	c.sendTextMsg(ctx, "chat_history_result", map[string]any{
 		"request_id": req.RequestID,

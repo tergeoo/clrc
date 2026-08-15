@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"sync"
 	"testing"
 )
@@ -44,6 +45,65 @@ func TestChatBufferEvictsOldest(t *testing.T) {
 	}
 	if b.NextSeq() != 4 {
 		t.Fatalf("NextSeq = %d, want 4 — eviction must not rewind the counter", b.NextSeq())
+	}
+}
+
+func TestChatBufferSincePageReturnsEverythingUnderBudget(t *testing.T) {
+	b := NewChatBuffer(10)
+	b.Append(ChatEvent{Kind: EventText, Text: "a"}, ChatEvent{Kind: EventText, Text: "b"})
+	events, nextSeq := b.SincePage(0, 1<<20) // budget far larger than these two events
+	if len(events) != 2 {
+		t.Fatalf("got %d events, want 2", len(events))
+	}
+	if nextSeq != b.NextSeq() {
+		t.Fatalf("nextSeq = %d, want NextSeq() = %d when the caller is fully caught up", nextSeq, b.NextSeq())
+	}
+}
+
+func TestChatBufferSincePageCapsByByteBudget(t *testing.T) {
+	b := NewChatBuffer(100)
+	// Each event carries a payload comfortably larger than a tiny budget, so
+	// only the first should fit and the rest must be deferred to a later page.
+	payload := strings.Repeat("x", 200)
+	for i := 0; i < 5; i++ {
+		b.Append(ChatEvent{Kind: EventText, Text: payload})
+	}
+
+	events, nextSeq := b.SincePage(0, 250) // budget: room for ~1 event, not 5
+	if len(events) == 0 || len(events) >= 5 {
+		t.Fatalf("got %d events, want a partial page (not 0, not all 5)", len(events))
+	}
+	if nextSeq != events[len(events)-1].Seq {
+		t.Fatalf("nextSeq = %d, want the seq of the last event returned (%d) so the next call resumes correctly", nextSeq, events[len(events)-1].Seq)
+	}
+	if nextSeq == b.NextSeq() {
+		t.Fatal("nextSeq must not claim the caller is caught up when events were held back")
+	}
+
+	// Paging with the returned nextSeq must eventually deliver the rest.
+	rest, finalNext := b.SincePage(nextSeq, 1<<20)
+	if len(events)+len(rest) != 5 {
+		t.Fatalf("got %d + %d = %d events across both pages, want 5", len(events), len(rest), len(events)+len(rest))
+	}
+	if finalNext != b.NextSeq() {
+		t.Fatalf("final page nextSeq = %d, want NextSeq() = %d", finalNext, b.NextSeq())
+	}
+}
+
+func TestChatBufferSincePageAlwaysMakesProgress(t *testing.T) {
+	b := NewChatBuffer(10)
+	huge := strings.Repeat("x", 10_000)
+	b.Append(ChatEvent{Kind: EventText, Text: huge}, ChatEvent{Kind: EventText, Text: "small"})
+
+	// A budget smaller than even the first event must still return that
+	// first event — otherwise a pathologically large single event could
+	// stall pagination forever.
+	events, nextSeq := b.SincePage(0, 10)
+	if len(events) != 1 {
+		t.Fatalf("got %d events, want exactly 1 (forced progress) when the budget is tiny", len(events))
+	}
+	if nextSeq != events[0].Seq {
+		t.Fatalf("nextSeq = %d, want %d", nextSeq, events[0].Seq)
 	}
 }
 

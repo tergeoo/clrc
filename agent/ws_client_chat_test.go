@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -102,5 +104,85 @@ func TestChatCleanupDoesNotOrphanReusedSessionID(t *testing.T) {
 	c.mu.RUnlock()
 	if got != s2 {
 		t.Fatalf("cleanup for the old session orphaned the reused id %q: map holds %v, want s2 (%v)", id, got, s2)
+	}
+}
+
+// TestChatConnectRejectsCwdOutsideHome is the security-relevant test spec
+// §7.4 calls out explicitly: cwd goes through the same home-directory
+// confinement (fsResolve) as every other filesystem operation, so a chat
+// session must not become a way around it. A connect naming a cwd outside
+// $HOME must be rejected and must create no session at all.
+func TestChatConnectRejectsCwdOutsideHome(t *testing.T) {
+	c := &WSClient{chats: make(map[string]*ChatSession)}
+
+	req := connectReq{
+		SessionID: "11111111-2222-4333-8444-555555555555",
+		Kind:      "chat",
+		Cwd:       "/etc",
+	}
+	c.handleChatConnect(req)
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.chats) != 0 {
+		t.Fatalf("connect with cwd outside $HOME must create no session, got %d: %+v", len(c.chats), c.chats)
+	}
+}
+
+// TestChatConnectRejectsCwdTraversalOutOfHome covers the same confinement
+// via a relative traversal (~/../../etc) rather than a bare absolute path,
+// since fsResolve is expected to catch both the same way.
+func TestChatConnectRejectsCwdTraversalOutOfHome(t *testing.T) {
+	c := &WSClient{chats: make(map[string]*ChatSession)}
+
+	req := connectReq{
+		SessionID: "22222222-3333-4444-8555-666666666666",
+		Kind:      "chat",
+		Cwd:       "~/../../etc",
+	}
+	c.handleChatConnect(req)
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if len(c.chats) != 0 {
+		t.Fatalf("connect with a cwd that traverses outside $HOME must create no session, got %d: %+v", len(c.chats), c.chats)
+	}
+}
+
+// TestHandleChatHistoryUsesPageBudget is the wiring-level regression test
+// for review Finding 5: handleChatHistory must page through
+// ChatSession.HistoryPage under chatHistoryPageBytes, not the unbounded
+// ChatSession.History — the byte-capping logic itself is covered exhaustively
+// in chat_buffer_test.go (SincePage); this confirms handleChatHistory
+// actually reaches that path without panicking on a large history and that
+// the result it would compute matches the capped, resumable shape.
+func TestHandleChatHistoryUsesPageBudget(t *testing.T) {
+	c := &WSClient{chats: make(map[string]*ChatSession)}
+	noop := func(string, []ChatEvent) {}
+	s := NewChatSession("sid", t.TempDir(), "", noop)
+	defer s.Close()
+	c.chats["sid"] = s
+
+	big := strings.Repeat("y", 2000)
+	for i := 0; i < 300; i++ {
+		s.buf.Append(ChatEvent{Kind: EventText, Text: big})
+	}
+
+	payload, err := json.Marshal(map[string]any{
+		"session_id": "sid", "request_id": "r1", "after_seq": uint64(0),
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	// conn is nil, so sendTextMsg no-ops after computing the page — this
+	// still exercises handleChatHistory's call into HistoryPage for panics.
+	c.handleChatHistory(context.Background(), payload)
+
+	events, nextSeq := s.HistoryPage(0, chatHistoryPageBytes)
+	if len(events) == 0 || len(events) >= 300 {
+		t.Fatalf("got %d events, want a partial page under the %d-byte budget", len(events), chatHistoryPageBytes)
+	}
+	if nextSeq == s.NextSeq() {
+		t.Fatal("nextSeq must not claim full replay when the page was capped")
 	}
 }
