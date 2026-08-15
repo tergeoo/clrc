@@ -27,9 +27,13 @@ struct SessionTabsView: View {
             ?? sessionManager.sessions.first
     }
 
+    var activeChatSession: ChatSession? {
+        sessionManager.chatSessions.first { $0.id == selectedSessionID }
+    }
+
     var body: some View {
         Group {
-            if sessionManager.sessions.isEmpty {
+            if sessionManager.sessions.isEmpty && sessionManager.chatSessions.isEmpty {
                 waitingView
             } else {
                 mainView
@@ -95,6 +99,12 @@ struct SessionTabsView: View {
                 selectedSessionID = last.id
             }
         }
+        .onChange(of: sessionManager.chatSessions) { _, chats in
+            if let last = chats.last,
+               selectedSessionID == nil || !chats.contains(where: { $0.id == selectedSessionID }) {
+                selectedSessionID = last.id
+            }
+        }
         // Dismiss keyboard whenever the user switches away from the Terminal tab.
         // Without this, SwiftTerm keeps first responder and the keyboard covers the tab bar.
         .onChange(of: activeTab) { _, _ in
@@ -110,7 +120,19 @@ struct SessionTabsView: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             // Session name button — uses ObservedObject wrapper for live updates
-            if let session = activeSession {
+            if let chat = activeChatSession {
+                Button { showMachineSelector = true } label: {
+                    HStack(spacing: 5) {
+                        Text(chat.customName)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else if let session = activeSession {
                 SessionNameButton(session: session) {
                     showMachineSelector = true
                 }
@@ -240,7 +262,10 @@ struct SessionTabsView: View {
 
     @ViewBuilder
     private var terminalTab: some View {
-        if let session = activeSession {
+        if let chat = activeChatSession {
+            ChatSessionView(session: chat)
+                .environmentObject(relay)
+        } else if let session = activeSession {
             TerminalTabContent(session: session)
         } else {
             noSessionPlaceholder
