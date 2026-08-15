@@ -61,6 +61,37 @@ type rawLine struct {
 type rawBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+
+	// tool_use
+	ID    string          `json:"id"`
+	Name  string          `json:"name"`
+	Input json.RawMessage `json:"input"`
+
+	// tool_result
+	ToolUseID string          `json:"tool_use_id"`
+	IsError   bool            `json:"is_error"`
+	Content   json.RawMessage `json:"content"`
+}
+
+// truncatePayload caps a payload at maxPayloadBytes, reporting whether it cut.
+func truncatePayload(s string) (string, bool) {
+	if len(s) <= maxPayloadBytes {
+		return s, false
+	}
+	return s[:maxPayloadBytes], true
+}
+
+// decodeContent renders a tool_result content field, which the CLI emits
+// either as a plain string or as an array of blocks.
+func decodeContent(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	return string(raw)
 }
 
 // TranslateLine converts one raw JSONL line into zero or more normalised
@@ -83,9 +114,20 @@ func TranslateLine(line []byte, ts string) []ChatEvent {
 	case "assistant":
 		var out []ChatEvent
 		for _, b := range raw.Message.Content {
-			if b.Type == "text" && b.Text != "" {
-				out = append(out, ChatEvent{Kind: EventText, TS: ts, Text: b.Text})
+			switch b.Type {
+			case "text":
+				if b.Text != "" {
+					out = append(out, ChatEvent{Kind: EventText, TS: ts, Text: b.Text})
+				}
+			case "tool_use":
+				input, cut := truncatePayload(string(b.Input))
+				out = append(out, ChatEvent{
+					Kind: EventToolUse, TS: ts,
+					ToolID: b.ID, Name: b.Name,
+					Input: input, Truncated: cut,
+				})
 			}
+			// "thinking" and any future block type are deliberately dropped.
 		}
 		return out
 
@@ -100,6 +142,22 @@ func TranslateLine(line []byte, ts string) []ChatEvent {
 		}}
 		if raw.IsError {
 			out = append(out, ChatEvent{Kind: EventError, TS: ts, Message: "turn ended with an error"})
+		}
+		return out
+
+	case "user":
+		var out []ChatEvent
+		for _, b := range raw.Message.Content {
+			if b.Type != "tool_result" {
+				continue
+			}
+			output, cut := truncatePayload(decodeContent(b.Content))
+			ok := !b.IsError
+			out = append(out, ChatEvent{
+				Kind: EventToolResult, TS: ts,
+				ToolID: b.ToolUseID, OK: &ok,
+				Output: output, Truncated: cut,
+			})
 		}
 		return out
 	}
