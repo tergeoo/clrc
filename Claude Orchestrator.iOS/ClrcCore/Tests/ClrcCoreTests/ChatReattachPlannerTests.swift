@@ -1,25 +1,57 @@
 import Testing
 @testable import ClrcCore
 
-private func snapshot(_ id: String, agentID: String = "agent-1", cwd: String = "/tmp",
-                      name: String = "chat", lastSeq: UInt64 = 0) -> ChatSessionSnapshot {
+private func chatSnapshot(_ id: String, agentID: String = "agent-1", cwd: String = "/tmp",
+                          name: String = "chat", lastSeq: UInt64 = 0) -> ChatSessionSnapshot {
     ChatSessionSnapshot(id: id, agentID: agentID, cwd: cwd, name: name, lastSeq: lastSeq)
 }
 
-@Suite("ChatReattachPlanner")
-struct ChatReattachPlannerTests {
+private func ptySnapshot(_ id: String, agentID: String = "agent-1", name: String = "term",
+                         cols: Int = 80, rows: Int = 24) -> PTYSessionSnapshot {
+    PTYSessionSnapshot(id: id, agentID: agentID, name: name, cols: cols, rows: rows)
+}
 
-    // C1 regression: a planner that returns nothing for chat sessions (the
-    // original bug — `onConnect` only iterated PTY `sessions`) must fail
-    // this test. Every chat session needs its own reattach action, with no
-    // exceptions, because the relay drops all of a client's sessions on
-    // unregister.
-    @Test("every chat session gets exactly one reattach action")
-    func oneActionPerSession() {
-        let sessions = [snapshot("a"), snapshot("b"), snapshot("c")]
-        let actions = ChatReattachPlanner.plan(chatSessions: sessions)
-        #expect(actions.count == 3)
-        #expect(Set(actions.map(\.sessionID)) == ["a", "b", "c"])
+@Suite("ReconnectPlanner")
+struct ReconnectPlannerTests {
+
+    // The original C1 bug: `SessionManager.onConnect` iterated PTY sessions
+    // directly and never routed chat sessions through any planner at all.
+    // `ChatReattachPlanner.plan` alone could never have caught that — every
+    // input it was ever given was already all-chat, so it had no way to
+    // "forget" a kind. Taking the *whole* inventory in one call and
+    // asserting the plan covers both kinds is what makes "silently skip a
+    // session kind" a fact this test can observe: a planner that special-
+    // cases PTY sessions and returns `chatReattaches: []` regardless of
+    // `inventory.chatSessions` fails this test outright.
+    @Test("every session in the inventory gets exactly one action, of both kinds")
+    func oneActionPerSessionBothKinds() {
+        let inventory = SessionInventory(
+            ptySessions: [ptySnapshot("p1"), ptySnapshot("p2")],
+            chatSessions: [chatSnapshot("c1"), chatSnapshot("c2"), chatSnapshot("c3")]
+        )
+        let plan = ReconnectPlanner.plan(inventory: inventory)
+
+        #expect(plan.ptyReconnects.count == 2)
+        #expect(Set(plan.ptyReconnects.map(\.sessionID)) == ["p1", "p2"])
+
+        #expect(plan.chatReattaches.count == 3)
+        #expect(Set(plan.chatReattaches.map(\.sessionID)) == ["c1", "c2", "c3"])
+    }
+
+    @Test("chat sessions alone still produce chat actions, with no PTY sessions present")
+    func chatOnlyInventory() {
+        let inventory = SessionInventory(chatSessions: [chatSnapshot("a"), chatSnapshot("b")])
+        let plan = ReconnectPlanner.plan(inventory: inventory)
+        #expect(plan.ptyReconnects.isEmpty)
+        #expect(plan.chatReattaches.count == 2)
+    }
+
+    @Test("PTY sessions alone still produce PTY actions, with no chat sessions present")
+    func ptyOnlyInventory() {
+        let inventory = SessionInventory(ptySessions: [ptySnapshot("a"), ptySnapshot("b")])
+        let plan = ReconnectPlanner.plan(inventory: inventory)
+        #expect(plan.ptyReconnects.count == 2)
+        #expect(plan.chatReattaches.isEmpty)
     }
 
     // The explicit history request is what recovers a turn that finished
@@ -28,31 +60,57 @@ struct ChatReattachPlannerTests {
     // reattach after a long-lived session would re-fetch its entire history
     // (or, worse, a bug that hardcodes 0 would look correct only for a
     // freshly created session in tests).
-    @Test("each action carries its own session's lastSeq, not a shared value")
-    func carriesOwnLastSeq() {
-        let sessions = [
-            snapshot("a", lastSeq: 42),
-            snapshot("b", lastSeq: 7),
-            snapshot("c", lastSeq: 0),
-        ]
-        let actions = ChatReattachPlanner.plan(chatSessions: sessions)
+    @Test("each chat action carries its own session's lastSeq, not a shared value")
+    func chatActionCarriesOwnLastSeq() {
+        let inventory = SessionInventory(chatSessions: [
+            chatSnapshot("a", lastSeq: 42),
+            chatSnapshot("b", lastSeq: 7),
+            chatSnapshot("c", lastSeq: 0),
+        ])
+        let actions = ReconnectPlanner.plan(inventory: inventory).chatReattaches
         let bySessionID = Dictionary(uniqueKeysWithValues: actions.map { ($0.sessionID, $0) })
         #expect(bySessionID["a"]?.afterSeq == 42)
         #expect(bySessionID["b"]?.afterSeq == 7)
         #expect(bySessionID["c"]?.afterSeq == 0)
     }
 
-    @Test("carries agentID, cwd and name through unchanged")
-    func carriesIdentity() {
-        let sessions = [snapshot("a", agentID: "mac-mini", cwd: "/Users/g/project", name: "My Chat")]
-        let action = ChatReattachPlanner.plan(chatSessions: sessions).first
+    @Test("each PTY action carries its own session's size, not a shared value")
+    func ptyActionCarriesOwnSize() {
+        let inventory = SessionInventory(ptySessions: [
+            ptySnapshot("a", cols: 100, rows: 40),
+            ptySnapshot("b", cols: 80, rows: 24),
+        ])
+        let actions = ReconnectPlanner.plan(inventory: inventory).ptyReconnects
+        let bySessionID = Dictionary(uniqueKeysWithValues: actions.map { ($0.sessionID, $0) })
+        #expect(bySessionID["a"]?.cols == 100 && bySessionID["a"]?.rows == 40)
+        #expect(bySessionID["b"]?.cols == 80 && bySessionID["b"]?.rows == 24)
+    }
+
+    @Test("carries chat identity — agentID, cwd and name — through unchanged")
+    func chatActionCarriesIdentity() {
+        let inventory = SessionInventory(chatSessions: [
+            chatSnapshot("a", agentID: "mac-mini", cwd: "/Users/g/project", name: "My Chat"),
+        ])
+        let action = ReconnectPlanner.plan(inventory: inventory).chatReattaches.first
         #expect(action?.agentID == "mac-mini")
         #expect(action?.cwd == "/Users/g/project")
         #expect(action?.name == "My Chat")
     }
 
-    @Test("no chat sessions → no actions")
+    @Test("carries PTY identity — agentID and name — through unchanged")
+    func ptyActionCarriesIdentity() {
+        let inventory = SessionInventory(ptySessions: [
+            ptySnapshot("a", agentID: "mac-mini", name: "My Terminal"),
+        ])
+        let action = ReconnectPlanner.plan(inventory: inventory).ptyReconnects.first
+        #expect(action?.agentID == "mac-mini")
+        #expect(action?.name == "My Terminal")
+    }
+
+    @Test("empty inventory → empty plan")
     func emptyInput() {
-        #expect(ChatReattachPlanner.plan(chatSessions: []).isEmpty)
+        let plan = ReconnectPlanner.plan(inventory: SessionInventory())
+        #expect(plan.ptyReconnects.isEmpty)
+        #expect(plan.chatReattaches.isEmpty)
     }
 }
