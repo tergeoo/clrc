@@ -49,6 +49,17 @@ struct ChatSessionView: View {
 struct ChatTurnView: View {
     let turn: ChatTurn
 
+    /// `tool_use`/`tool_result` are emitted as separate events but paired by
+    /// `tool_id` on the agent (see agent/chat_events.go) — look the result up
+    /// once per turn rather than scanning `turn.events` per row. Later
+    /// duplicates win, matching how `ChatTranscript` treats seq ordering.
+    private var toolResultsByID: [String: ChatEvent] {
+        Dictionary(
+            turn.events.filter { $0.kind == .toolResult }.map { ($0.toolID, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(turn.events) { event in
@@ -58,8 +69,11 @@ struct ChatTurnView: View {
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                case .userText:
+                    UserTextBubble(text: event.text)
+
                 case .toolUse:
-                    ToolCallRow(event: event)
+                    ToolCallRow(event: event, result: toolResultsByID[event.toolID])
 
                 case .error:
                     Label(event.message, systemImage: "exclamationmark.triangle")
@@ -81,8 +95,29 @@ struct ChatTurnView: View {
     }
 }
 
+/// The user's own message, echoed back by the agent as a `user_text` event
+/// so it lands in the buffer and replays correctly. Rendered as a trailing
+/// bubble to read visually distinct from assistant `text`.
+struct UserTextBubble: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .textSelection(.enabled)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.accentColor)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+}
+
 struct ToolCallRow: View {
     let event: ChatEvent
+    /// The matching `tool_result` for this `tool_use`, if it has arrived yet
+    /// (M4) — looked up by `tool_id` in the parent `ChatTurnView`.
+    let result: ChatEvent?
     @State private var expanded = false
 
     var body: some View {
@@ -110,9 +145,28 @@ struct ToolCallRow: View {
                     .background(Color(.secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 if event.truncated {
-                    Text("truncated")
+                    Text("input truncated")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+
+                if let result {
+                    Text(result.output)
+                        .font(.system(size: 12, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            result.ok == false
+                                ? Color.red.opacity(0.12)
+                                : Color(.secondarySystemBackground)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    if result.truncated {
+                        Text("output truncated")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
