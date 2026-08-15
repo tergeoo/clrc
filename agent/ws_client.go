@@ -17,13 +17,22 @@ type Message struct {
 }
 
 // connectReq is the payload of a "connect" control message.
-// Name is optional — older clients don't send it.
+// Name is optional — older clients don't send it. Kind is likewise optional
+// and absent means "pty", which is what every pre-chat client sends.
 type connectReq struct {
 	SessionID string `json:"session_id"`
 	Cols      uint16 `json:"cols"`
 	Rows      uint16 `json:"rows"`
 	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	Cwd       string `json:"cwd"`
+	Model     string `json:"model"`
 }
+
+// isPTY reports whether this connect asks for a terminal session. Anything
+// that is not explicitly "chat" is a PTY, so unknown kinds from a newer
+// client degrade to current behaviour rather than failing.
+func (r connectReq) isPTY() bool { return r.Kind != "chat" }
 
 // sanitizeSessionName caps the display name and strips control characters
 // (it is written to disk, echoed in sessions_list, and printed by `clrc sessions`).
@@ -68,6 +77,7 @@ func buildSessionsList(live map[string]*PTYSession, disk []SessionInfo) []map[st
 type WSClient struct {
 	cfg      *Config
 	sessions map[string]*PTYSession
+	chats    map[string]*ChatSession
 	mu       sync.RWMutex
 	conn     *websocket.Conn
 	connMu   sync.Mutex
@@ -77,6 +87,7 @@ func NewWSClient(cfg Config) *WSClient {
 	return &WSClient{
 		cfg:      &cfg,
 		sessions: make(map[string]*PTYSession),
+		chats:    make(map[string]*ChatSession),
 	}
 }
 
@@ -209,6 +220,12 @@ func (c *WSClient) handleText(ctx context.Context, data []byte) {
 		c.handleFSDelete(ctx, msg.Payload)
 	case "fs_read":
 		c.handleFSRead(ctx, msg.Payload)
+	case "chat_send":
+		c.handleChatSend(msg.Payload)
+	case "chat_interrupt":
+		c.handleChatInterrupt(msg.Payload)
+	case "chat_history":
+		c.handleChatHistory(ctx, msg.Payload)
 	}
 }
 
@@ -223,6 +240,11 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		return
 	}
 	req.Name = sanitizeSessionName(req.Name)
+
+	if !req.isPTY() {
+		c.handleChatConnect(req)
+		return
+	}
 
 	// Check if session already exists — reattach instead of creating new PTY
 	c.mu.RLock()
@@ -266,6 +288,124 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		RemoveSess(req.SessionID)
 		log.Printf("PTY session ended: %s", req.SessionID)
 	}()
+}
+
+// handleChatConnect creates or reattaches a chat session. cwd goes through
+// the same home-directory confinement as every other filesystem operation —
+// a chat session must not become a way around it.
+func (c *WSClient) handleChatConnect(req connectReq) {
+	c.mu.RLock()
+	existing := c.chats[req.SessionID]
+	c.mu.RUnlock()
+	if existing != nil {
+		log.Printf("Chat session reattached: %s", req.SessionID)
+		return
+	}
+
+	cwd := req.Cwd
+	if cwd == "" {
+		cwd = "~"
+	}
+	resolvedCwd, err := fsResolve(cwd)
+	if err != nil {
+		log.Printf("Rejecting chat session %s: %v", req.SessionID, err)
+		c.sendChatError(req.SessionID, "working directory is not allowed")
+		return
+	}
+
+	sess := NewChatSession(req.SessionID, resolvedCwd, req.Model, c.sendChatEvents)
+
+	c.mu.Lock()
+	c.chats[req.SessionID] = sess
+	c.mu.Unlock()
+
+	log.Printf("Chat session started: %s (cwd: %s)", req.SessionID, resolvedCwd)
+
+	go func() {
+		<-sess.Done()
+		c.mu.Lock()
+		delete(c.chats, req.SessionID)
+		c.mu.Unlock()
+		log.Printf("Chat session ended: %s", req.SessionID)
+	}()
+}
+
+// sendChatEvents forwards normalised events to the relay as text frames.
+func (c *WSClient) sendChatEvents(sessionID string, events []ChatEvent) {
+	for _, e := range events {
+		c.sendTextMsg(context.Background(), "chat_event", map[string]any{
+			"session_id": sessionID,
+			"event":      e,
+		})
+	}
+}
+
+func (c *WSClient) sendChatError(sessionID, message string) {
+	c.sendTextMsg(context.Background(), "chat_event", map[string]any{
+		"session_id": sessionID,
+		"event": ChatEvent{
+			Kind:    EventError,
+			TS:      time.Now().UTC().Format(time.RFC3339),
+			Message: message,
+		},
+	})
+}
+
+func (c *WSClient) chatSession(sessionID string) *ChatSession {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.chats[sessionID]
+}
+
+func (c *WSClient) handleChatSend(payload json.RawMessage) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		Text      string `json:"text"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	sess := c.chatSession(req.SessionID)
+	if sess == nil {
+		return
+	}
+	if err := sess.Send(req.Text); err != nil {
+		log.Printf("chat_send failed for %s: %v", req.SessionID, err)
+	}
+}
+
+func (c *WSClient) handleChatInterrupt(payload json.RawMessage) {
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	if sess := c.chatSession(req.SessionID); sess != nil {
+		sess.Interrupt()
+	}
+}
+
+func (c *WSClient) handleChatHistory(ctx context.Context, payload json.RawMessage) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		RequestID string `json:"request_id"`
+		AfterSeq  uint64 `json:"after_seq"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	events := []ChatEvent{}
+	var nextSeq uint64 = 1
+	if sess := c.chatSession(req.SessionID); sess != nil {
+		events = sess.History(req.AfterSeq)
+		nextSeq = sess.buf.NextSeq()
+	}
+	c.sendTextMsg(ctx, "chat_history_result", map[string]any{
+		"request_id": req.RequestID,
+		"events":     events,
+		"next_seq":   nextSeq,
+	})
 }
 
 func (c *WSClient) handleResize(payload json.RawMessage) {
@@ -319,6 +459,14 @@ func (c *WSClient) handleDisconnect(payload json.RawMessage) {
 	if ok {
 		sess.Close()
 		log.Printf("PTY session closed by client: %s", req.SessionID)
+	}
+
+	c.mu.Lock()
+	chat := c.chats[req.SessionID]
+	delete(c.chats, req.SessionID)
+	c.mu.Unlock()
+	if chat != nil {
+		chat.Close()
 	}
 }
 
