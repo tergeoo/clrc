@@ -538,7 +538,7 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 				break
 			}
 			if !hub.RouteTextToAgent(pl.SessionID, data) {
-				log.Printf("%s dropped: no route for session %s", incoming.Type, pl.SessionID)
+				log.Printf("%s dropped: no route for session %s", incoming.Type, logSafeSessionID(pl.SessionID))
 			}
 
 		case "chat_history":

@@ -31,3 +31,16 @@ func validSessionID(id string) bool {
 func validAgentID(id string) bool {
 	return uuidV4.MatchString(id)
 }
+
+// logSafeSessionID returns id for logging only if it is already a
+// well-formed session id; otherwise it returns a fixed placeholder. Without
+// this, an authenticated client could get arbitrary attacker-controlled
+// content — anything up to maxMessageBytes — written into the relay's log
+// simply by sending a chat_send/chat_interrupt with a bogus session_id and
+// no matching route (e.g. after the agent side has already disconnected).
+func logSafeSessionID(id string) string {
+	if validSessionID(id) {
+		return id
+	}
+	return "<invalid>"
+}

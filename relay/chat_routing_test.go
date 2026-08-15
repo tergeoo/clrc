@@ -231,6 +231,11 @@ func TestChatHistoryUsesRequestCorrelation(t *testing.T) {
 // chat_send/chat_interrupt for a session with no route (e.g. the agent
 // already dropped it) vanished in total silence — exactly what would have
 // made the Critical Interrupt defect visible instead of invisible.
+//
+// The session_id here must be well-formed (a valid UUID v4, just an unknown
+// one) rather than an arbitrary string like the original "no-such-session":
+// the log-injection fix (see TestChatSendToUnknownSessionLogsPlaceholderForMalformedID
+// below) means only a well-formed id is ever echoed into the log verbatim.
 func TestChatSendToUnknownSessionIsLogged(t *testing.T) {
 	_, auth, base := newTestRelay(t)
 
@@ -247,18 +252,61 @@ func TestChatSendToUnknownSessionIsLogged(t *testing.T) {
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(orig)
 
+	const unknownButWellFormed = "99999999-9999-4999-8999-999999999999"
 	writeMsg(t, client, "chat_send", map[string]any{
-		"session_id": "no-such-session", "text": "hello",
+		"session_id": unknownButWellFormed, "text": "hello",
 	})
 
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if strings.Contains(logBuf.String(), "no-such-session") {
+		if strings.Contains(logBuf.String(), unknownButWellFormed) {
 			return
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("expected a dropped-route log for chat_send to an unknown session; got %q", logBuf.String())
+}
+
+// TestChatSendToUnknownSessionLogsPlaceholderForMalformedID is the
+// regression test for the log-injection defect found in the same fix wave
+// as the Critical Interrupt defect above: the relay used to log a dropped
+// chat_send/chat_interrupt's session_id verbatim, straight from
+// client-controlled JSON, with no validation — letting an authenticated
+// client write arbitrary content into the relay's log. A malformed
+// session_id must produce a log line, but must not contain the attacker's
+// literal payload.
+func TestChatSendToUnknownSessionLogsPlaceholderForMalformedID(t *testing.T) {
+	_, auth, base := newTestRelay(t)
+
+	token, err := auth.GenerateAccessToken()
+	if err != nil {
+		t.Fatalf("mint token: %v", err)
+	}
+	client := dial(t, base+"/ws/client")
+	writeMsg(t, client, "auth", map[string]any{"token": token})
+	time.Sleep(100 * time.Millisecond) // let auth settle
+
+	var logBuf syncBuffer
+	orig := log.Writer()
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(orig)
+
+	const payload = "injected-log-line-marker"
+	writeMsg(t, client, "chat_send", map[string]any{
+		"session_id": payload, "text": "hello",
+	})
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logBuf.String(), "dropped: no route") {
+			if strings.Contains(logBuf.String(), payload) {
+				t.Fatalf("attacker-controlled session_id was logged verbatim: %q", logBuf.String())
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("expected a dropped-route log for chat_send to a malformed session id; got %q", logBuf.String())
 }
 
 // TestChatHistoryRejectsEmptyRequestID mirrors the guard
