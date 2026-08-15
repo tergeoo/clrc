@@ -6,6 +6,7 @@ import Foundation
 public enum ChatEventKind: String, Codable, Sendable {
     case turnStart = "turn_start"
     case text
+    case userText = "user_text"
     case toolUse = "tool_use"
     case toolResult = "tool_result"
     case turnEnd = "turn_end"
