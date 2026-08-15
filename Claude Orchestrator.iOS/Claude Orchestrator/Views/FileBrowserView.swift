@@ -43,6 +43,14 @@ struct FileBrowserView: View {
     let agentName: String
     /// When true the view is shown inline (no NavigationStack, no Done button).
     var embedded: Bool = false
+    /// Whether the launch bar offers a separate "Dangerous" (skip-permissions)
+    /// action alongside "Claude here". Only meaningful for callers whose
+    /// `onLaunchClaude` actually treats the two differently — e.g. a PTY
+    /// session that runs `claude --dangerously-skip-permissions` vs plain
+    /// `claude`. Chat sessions always run bypassPermissions regardless of
+    /// this flag (spec §3.1), so presenting a second button there would
+    /// misrepresent risk rather than offer a real choice.
+    var showDangerousOption: Bool = true
     let onLaunchClaude: (_ path: String, _ dangerous: Bool) -> Void
 
     @EnvironmentObject var relay: RelayWebSocket
@@ -410,25 +418,27 @@ struct FileBrowserView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
-                Button {
-                    onLaunchClaude(currentPath, true)
-                    dismiss()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Dangerous")
-                            .font(.system(size: 15, weight: .semibold))
+                if showDangerousOption {
+                    Button {
+                        onLaunchClaude(currentPath, true)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Dangerous")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.orange.opacity(0.15))
+                        .foregroundStyle(Color.orange)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.orange.opacity(0.15))
-                    .foregroundStyle(Color.orange)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.orange.opacity(0.35), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
             .padding(.horizontal, 16)

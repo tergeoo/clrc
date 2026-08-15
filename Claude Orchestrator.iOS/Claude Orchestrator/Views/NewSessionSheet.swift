@@ -59,7 +59,7 @@ struct NewSessionSheet: View {
             }
             .sheet(isPresented: $showBrowser) {
                 if let agent = selectedAgent {
-                    FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false) { path, _ in
+                    FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false, showDangerousOption: false) { path, _ in
                         showBrowser = false
                         // Let the inner sheet finish dismissing before starting the session
                         // and dismissing this sheet — simultaneous dismissals drop transitions.

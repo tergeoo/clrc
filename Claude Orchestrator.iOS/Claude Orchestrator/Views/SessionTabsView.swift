@@ -426,6 +426,28 @@ private struct MachineSelectorSheet: View {
                     }
                 }
 
+                // ── Chat sessions ────────────────────────────────────────
+                if !sessionManager.chatSessions.isEmpty {
+                    Section {
+                        ForEach(sessionManager.chatSessions) { chat in
+                            ChatSessionRowView(
+                                session: chat,
+                                isActive: chat.id == selectedSessionID
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedSessionID = chat.id
+                                onDismiss()
+                            }
+                        }
+                    } header: {
+                        Label(
+                            "\(sessionManager.chatSessions.count) chat session\(sessionManager.chatSessions.count == 1 ? "" : "s")",
+                            systemImage: "message"
+                        )
+                    }
+                }
+
                 // ── Mac Agents ───────────────────────────────────────────
                 if !relay.agents.isEmpty {
                     Section {
@@ -660,6 +682,63 @@ private struct SessionRowView: View {
                     .foregroundStyle(.orange)
             }
         }
+    }
+}
+
+// MARK: - ChatSessionRowView
+// Mirrors SessionRowView's style for chat sessions in the machine selector.
+// Rename/close are intentionally not offered here — out of scope for this pass.
+
+private struct ChatSessionRowView: View {
+    @ObservedObject var session: ChatSession
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // Active indicator bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isActive ? Color.accentColor : Color.clear)
+                .frame(width: 3, height: 38)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.customName)
+                    .font(.system(size: 16, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 6) {
+                    // Agent name (short)
+                    Text(shortAgentName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    // Working badge
+                    if session.isWorking {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 5, height: 5)
+                            Text("working…")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            if isActive {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(Color.accentColor)
+                    .fontWeight(.semibold)
+                    .font(.system(size: 14))
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var shortAgentName: String {
+        session.agent.name.components(separatedBy: ".").first ?? session.agent.name
     }
 }
 

@@ -14,11 +14,12 @@ struct ChatSessionView: View {
                         ForEach(session.transcript.turns) { turn in
                             ChatTurnView(turn: turn)
                         }
+                        Color.clear.frame(height: 1).id("bottom")
                     }
                     .padding()
                 }
-                .onChange(of: session.transcript.lastSeq) { _, seq in
-                    withAnimation { proxy.scrollTo(seq, anchor: .bottom) }
+                .onChange(of: session.transcript.lastSeq) { _, _ in
+                    withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
                 }
             }
 
