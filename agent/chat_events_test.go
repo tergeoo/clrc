@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestTranslateLine(t *testing.T) {
@@ -69,6 +70,21 @@ func TestTranslateLine(t *testing.T) {
 			name: "result with is_error yields turn_end and error",
 			line: `{"type":"result","subtype":"error","is_error":true,"num_turns":1}`,
 			want: []ChatEventKind{EventTurnEnd, EventError},
+			check: func(t *testing.T, got []ChatEvent) {
+				if got[1].Message != "turn ended with an error" {
+					t.Fatalf("message = %q, want generic fallback", got[1].Message)
+				}
+			},
+		},
+		{
+			name: "result with is_error and a result string prefers the CLI's own message",
+			line: `{"type":"result","subtype":"error","is_error":true,"num_turns":1,"result":"quota exceeded"}`,
+			want: []ChatEventKind{EventTurnEnd, EventError},
+			check: func(t *testing.T, got []ChatEvent) {
+				if got[1].Message != "quota exceeded" {
+					t.Fatalf("message = %q, want the CLI's result string", got[1].Message)
+				}
+			},
 		},
 		{
 			name: "malformed json yields nothing, never panics",
@@ -270,12 +286,9 @@ func TestTruncatePayloadUTF8(t *testing.T) {
 	}
 }
 
-// isValidUTF8 checks if a string contains only valid UTF-8.
+// isValidUTF8 checks if a string contains only valid UTF-8. Ranging over a
+// string never yields rune -1 (invalid sequences decode to U+FFFD instead),
+// so this must delegate to utf8.ValidString rather than check for -1.
 func isValidUTF8(s string) bool {
-	for _, r := range s {
-		if r == -1 { // -1 is the replacement character for invalid UTF-8
-			return false
-		}
-	}
-	return true
+	return utf8.ValidString(s)
 }

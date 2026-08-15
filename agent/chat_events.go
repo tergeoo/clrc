@@ -21,6 +21,7 @@ const (
 	EventToolResult ChatEventKind = "tool_result"
 	EventTurnEnd    ChatEventKind = "turn_end"
 	EventError      ChatEventKind = "error"
+	EventUserText   ChatEventKind = "user_text"
 )
 
 // ChatEvent is one normalised event. Seq is stamped by ChatBuffer.Append,
@@ -59,6 +60,7 @@ type rawLine struct {
 	TotalCostUSD  float64 `json:"total_cost_usd"`
 	DurationAPIMS int     `json:"duration_api_ms"`
 	StopReason    string  `json:"stop_reason"`
+	Result        string  `json:"result"`
 }
 
 type rawBlock struct {
@@ -164,7 +166,11 @@ func TranslateLine(line []byte, ts string) []ChatEvent {
 			StopReason: raw.StopReason,
 		}}
 		if raw.IsError {
-			out = append(out, ChatEvent{Kind: EventError, TS: ts, Message: "turn ended with an error"})
+			msg := "turn ended with an error"
+			if raw.Result != "" {
+				msg = raw.Result
+			}
+			out = append(out, ChatEvent{Kind: EventError, TS: ts, Message: msg})
 		}
 		return out
 
