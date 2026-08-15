@@ -54,38 +54,52 @@ final class SessionManager: ObservableObject {
 
         // After every reconnect, re-register all live sessions with the relay.
         relay.onConnect = { [weak self] in
-            guard let self else { return }
-            // Force a fresh reconcile pass when the agent list arrives after reconnect
-            self.knownAgentIDs.removeAll()
-            for session in self.sessions {
-                self.relay.sendConnect(
-                    agentID: session.agent.id,
-                    sessionID: session.id,
-                    cols: session.lastCols,
-                    rows: session.lastRows,
-                    name: session.customName
-                )
-            }
-            self.reattachChatSessions()
+            self?.handleReconnect()
         }
     }
 
-    // MARK: - Chat reattach (C1)
+    // MARK: - Reconnect (C1)
 
     /// The relay drops every session belonging to a client as soon as that
     /// client unregisters — which happens on *any* reconnect (backgrounding,
-    /// Wi-Fi → cellular, a failed ping, a relay restart). Unlike PTY
-    /// sessions, a chat session that isn't re-`connect`ed has no way to ever
-    /// hear from its agent again, and no live event will arrive to trigger
-    /// the gap-triggered replay either — so the history request here is not
-    /// an optimization, it's required to notice a turn that finished while
-    /// the app was away.
-    private func reattachChatSessions() {
-        let snapshots = chatSessions.map {
-            ChatSessionSnapshot(id: $0.id, agentID: $0.agent.id, cwd: $0.cwd,
-                                name: $0.customName, lastSeq: $0.transcript.lastSeq)
+    /// Wi-Fi → cellular, a failed ping, a relay restart). Every live
+    /// session, PTY or chat, needs its own reconnect action; both kinds are
+    /// routed through one call to `ReconnectPlanner.plan` over the *full*
+    /// inventory, on purpose — see that type's doc comment for why this
+    /// shape, rather than a separate planning call per kind, is what turns
+    /// "forgot to reattach a session kind" into a planner bug a unit test
+    /// can catch, instead of a wiring bug that only shows up live. (This
+    /// method itself — that it runs at all on reconnect, and that it is the
+    /// thing wired to `relay.onConnect` — is exactly the wiring half that
+    /// remains untestable without an Xcode test target; only the planner's
+    /// decision is covered by `ReconnectPlannerTests`.)
+    ///
+    /// Unlike PTY sessions, a chat session that isn't re-`connect`ed has no
+    /// way to ever hear from its agent again, and no live event will arrive
+    /// to trigger the gap-triggered replay either — so the history request
+    /// here is not an optimization, it's required to notice a turn that
+    /// finished while the app was away.
+    private func handleReconnect() {
+        // Force a fresh reconcile pass when the agent list arrives after reconnect.
+        knownAgentIDs.removeAll()
+
+        let inventory = SessionInventory(
+            ptySessions: sessions.map {
+                PTYSessionSnapshot(id: $0.id, agentID: $0.agent.id, name: $0.customName,
+                                   cols: $0.lastCols, rows: $0.lastRows)
+            },
+            chatSessions: chatSessions.map {
+                ChatSessionSnapshot(id: $0.id, agentID: $0.agent.id, cwd: $0.cwd,
+                                    name: $0.customName, lastSeq: $0.transcript.lastSeq)
+            }
+        )
+        let plan = ReconnectPlanner.plan(inventory: inventory)
+
+        for action in plan.ptyReconnects {
+            relay.sendConnect(agentID: action.agentID, sessionID: action.sessionID,
+                              cols: action.cols, rows: action.rows, name: action.name)
         }
-        for action in ChatReattachPlanner.plan(chatSessions: snapshots) {
+        for action in plan.chatReattaches {
             relay.sendChatConnect(agentID: action.agentID, sessionID: action.sessionID,
                                   cwd: action.cwd, name: action.name)
             if let session = chatSessions.first(where: { $0.id == action.sessionID }) {
@@ -94,24 +108,69 @@ final class SessionManager: ObservableObject {
         }
     }
 
-    /// Requests the tail of a chat session's history and folds it in.
+    /// Requests the tail of a chat session's history and folds it in,
+    /// paging through as many requests as needed to fully drain it. The
+    /// agent pages `chat_history_result` by a byte budget and reports
+    /// `next_seq`; a backlog from a couple of tool-heavy turns can span
+    /// several pages, and on the exact path this replay exists for — the
+    /// app was away, the turn finished while it was gone, now it reconnects
+    /// — no live event will ever arrive to trigger a follow-up request, so
+    /// stopping after one page would leave the transcript truncated
+    /// mid-turn with the spinner stuck forever. See `fetchChatReplayPage`.
+    ///
     /// Also the mechanism behind M9: while `isReplaying` is true, live
     /// events that turn out to be gapped are recorded (not dropped) via
-    /// `highWaterSeqDuringReplay`; once this replay lands, if that
-    /// high-water mark is still ahead of `transcript.lastSeq`, another
+    /// `highWaterSeqDuringReplay`; once the whole paged replay lands, if
+    /// that high-water mark is still ahead of `transcript.lastSeq`, another
     /// replay is started immediately rather than waiting for some later
     /// event to happen to trigger one.
     private func startChatReplay(for session: ChatSession) {
         session.isReplaying = true
         session.highWaterSeqDuringReplay = 0
+        fetchChatReplayPage(for: session, afterSeq: session.transcript.lastSeq)
+    }
+
+    /// Fetches one page of a chat replay and recurses for the next page
+    /// while `next_seq` reports forward progress, so `startChatReplay`'s
+    /// `isReplaying` window covers the *whole* paged fetch, not just the
+    /// first page.
+    ///
+    /// `next_seq > afterSeq` is the sole continue/stop signal, and it is
+    /// also the guard against a non-advancing token: a caught-up or
+    /// malformed reply reports `next_seq <= afterSeq` and this stops
+    /// immediately rather than re-requesting the same page forever.
+    ///
+    /// Before applying anything, checks for a buffer reset (Defect 3): if
+    /// `next_seq` comes back *behind* this session's own `lastSeq`, the
+    /// agent's in-memory seq counter has restarted (e.g. an agent reboot or
+    /// `clrc restart`) and our accumulated `lastSeq` belongs to a buffer
+    /// that no longer exists. Comparing anything against it from here on
+    /// would make every future event look "already seen" and silently drop
+    /// it — freezing the tab forever with no error — so the transcript is
+    /// discarded and the replay restarts from scratch against the new
+    /// counter.
+    private func fetchChatReplayPage(for session: ChatSession, afterSeq: UInt64) {
         relay.requestChatHistory(
             agentID: session.agent.id,
             sessionID: session.id,
-            afterSeq: session.transcript.lastSeq
-        ) { [weak self, weak session] events, _ in
+            afterSeq: afterSeq
+        ) { [weak self, weak session] events, nextSeq in
             Task { @MainActor in
                 guard let self, let session else { return }
+
+                if session.transcript.isBehindBufferReset(replyNextSeq: nextSeq) {
+                    session.resetTranscript()
+                    self.fetchChatReplayPage(for: session, afterSeq: 0)
+                    return
+                }
+
                 session.apply(history: events)
+
+                if nextSeq > afterSeq {
+                    self.fetchChatReplayPage(for: session, afterSeq: nextSeq)
+                    return
+                }
+
                 session.isReplaying = false
                 if session.highWaterSeqDuringReplay > session.transcript.lastSeq {
                     self.startChatReplay(for: session)

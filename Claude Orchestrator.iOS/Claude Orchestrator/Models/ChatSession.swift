@@ -79,6 +79,20 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
         updateState(from: events)
     }
 
+    /// Discards the transcript and its derived UI state entirely. Called by
+    /// `SessionManager` when a chat-history reply reveals the agent's
+    /// buffer has reset (`ChatTranscript.isBehindBufferReset`, e.g. after an
+    /// agent restart) — our accumulated `lastSeq` belongs to a buffer that
+    /// no longer exists, so nothing about the old transcript or the
+    /// spinner/error state derived from it can be trusted going forward
+    /// either. The caller re-requests the tail from scratch immediately
+    /// after calling this.
+    func resetTranscript() {
+        transcript = ChatTranscript()
+        isWorking = false
+        lastError = nil
+    }
+
     /// Derives `isWorking`/`lastError` from `events` via `ChatStateDeriver`
     /// (pure logic, tested in `ClrcCore`), folded onto the session's current
     /// state. Order within `events` doesn't matter — the deriver sorts by
