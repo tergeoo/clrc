@@ -131,7 +131,8 @@ Pure functions: raw Claude Code JSONL line → zero or more normalised events. N
 - Map `result` → `turn_end`, carrying `num_turns`, `total_cost_usd`, `duration_api_ms`, `stop_reason`; `is_error: true` additionally yields an `error` event.
 - Map `system/init` → `turn_start`. The capture shows `init` is emitted at the start of **every** turn, not only the first, so it is a per-turn marker rather than a session-open marker.
 - Truncate per §6.4.
-- Assign `seq`.
+
+`seq` is **not** assigned here. Translation stays a pure function of its input line, so the counter lives in the buffer (§7.3) and is stamped on `Append`. This keeps the translator trivially table-testable with no shared state between cases.
 
 ### 7.2 `agent/chat_session.go` — process lifecycle
 
@@ -152,7 +153,7 @@ Scanner buffers must be raised above `bufio.Scanner`'s default 64 KB — a singl
 
 ### 7.3 `agent/chat_buffer.go` — event buffer
 
-A small interface (`Append(event)`, `Since(seq) []event`) backed by an in-memory ring buffer holding the last N events (N = 2000). Sub-project 2 substitutes a disk-backed log at this same seam without touching callers.
+A small interface (`Append(events...) []event`, `Since(seq) []event`, `NextSeq() uint64`) backed by an in-memory ring buffer holding the last N events (N = 2000). `Append` stamps the monotonic `seq` and returns the stamped events, which is the single place the counter advances. Sub-project 2 substitutes a disk-backed log at this same seam without touching callers.
 
 ### 7.4 Security
 
