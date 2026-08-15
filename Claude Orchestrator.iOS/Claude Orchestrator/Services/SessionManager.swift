@@ -6,6 +6,7 @@ import ClrcCore
 @MainActor
 final class SessionManager: ObservableObject {
     @Published var sessions: [TerminalSession] = []
+    @Published var chatSessions: [ChatSession] = []
     /// Persisted sessions whose PTY is gone — shown as "Ended" with a restart option.
     @Published var tombstones: [PersistedSession] = []
 
@@ -134,6 +135,39 @@ final class SessionManager: ObservableObject {
             store.addRecentProject(projectPath, agentID: agent.id)
         }
         relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24, name: name)
+    }
+
+    func createChatSession(for agent: Agent, cwd: String, name: String) {
+        let session = ChatSession(agent: agent, cwd: cwd, customName: name)
+        chatSessions.append(session)
+
+        relay.registerChatHandler(sessionID: session.id) { [weak self, weak session] event in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard session.receive(event) else { return }
+                guard !session.isReplaying else { return } // a replay for this gap is already in flight
+                session.isReplaying = true
+                self.relay.requestChatHistory(
+                    agentID: session.agent.id,
+                    sessionID: session.id,
+                    afterSeq: session.transcript.lastSeq
+                ) { events, _ in
+                    Task { @MainActor in
+                        session.apply(history: events)
+                        session.isReplaying = false
+                    }
+                }
+            }
+        }
+
+        relay.sendChatConnect(agentID: agent.id, sessionID: session.id,
+                              cwd: cwd, name: name)
+    }
+
+    func closeChat(_ session: ChatSession) {
+        relay.unregisterChatHandler(sessionID: session.id)
+        relay.sendDisconnect(sessionID: session.id)
+        chatSessions.removeAll { $0.id == session.id }
     }
 
     /// Attach to an existing PTY session on the agent (session_id already known).

@@ -13,7 +13,6 @@ struct NewSessionSheet: View {
     @State private var selectedAgentID: String?
     @State private var customName = ""
     @State private var showBrowser = false
-    @AppStorage("default_skip_permissions") private var skipPermissions = false
 
     private var onlineAgents: [Agent] {
         relay.agents.filter(\.connected)
@@ -60,12 +59,12 @@ struct NewSessionSheet: View {
             }
             .sheet(isPresented: $showBrowser) {
                 if let agent = selectedAgent {
-                    FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false) { path, dangerous in
+                    FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false, showDangerousOption: false) { path, _ in
                         showBrowser = false
                         // Let the inner sheet finish dismissing before starting the session
                         // and dismissing this sheet — simultaneous dismissals drop transitions.
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            start(in: path, agent: agent, dangerous: dangerous)
+                            start(in: path, agent: agent)
                         }
                     }
                     .environmentObject(relay)
@@ -91,7 +90,7 @@ struct NewSessionSheet: View {
         Section("Project") {
             ForEach(sessionManager.recentProjects(for: agent), id: \.self) { path in
                 Button {
-                    start(in: path, agent: agent, dangerous: skipPermissions)
+                    start(in: path, agent: agent)
                 } label: {
                     HStack {
                         Image(systemName: "clock.arrow.circlepath")
@@ -118,7 +117,6 @@ struct NewSessionSheet: View {
 
     private var optionsSection: some View {
         Section("Options") {
-            Toggle("Skip permissions (⚠ dangerous)", isOn: $skipPermissions)
             TextField("Name (optional)", text: $customName)
                 .autocorrectionDisabled()
         }
@@ -127,7 +125,7 @@ struct NewSessionSheet: View {
     private func startSection(agent: Agent) -> some View {
         Section {
             Button {
-                start(in: nil, agent: agent, dangerous: skipPermissions)
+                start(in: nil, agent: agent)
             } label: {
                 Label("Start Claude in home folder", systemImage: "sparkles")
             }
@@ -143,11 +141,13 @@ struct NewSessionSheet: View {
 
     // MARK: - Actions
 
-    private func start(in path: String?, agent: Agent, dangerous: Bool) {
-        let claude = dangerous ? "claude --dangerously-skip-permissions" : "claude"
-        let command = path.map { "cd \"\($0)\" && \(claude)" } ?? claude
-        sessionManager.createSession(for: agent, initialCommand: command)
-        renameIfNeeded()
+    private func start(in path: String?, agent: Agent) {
+        let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        sessionManager.createChatSession(
+            for: agent,
+            cwd: path ?? "~",
+            name: name.isEmpty ? (path as NSString?)?.lastPathComponent ?? "claude" : name
+        )
         dismiss()
     }
 

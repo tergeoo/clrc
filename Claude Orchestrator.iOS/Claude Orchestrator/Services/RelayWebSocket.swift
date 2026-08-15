@@ -30,6 +30,10 @@ final class RelayWebSocket: NSObject, ObservableObject {
     private var urlSession: URLSession!
     private var sessionHandlers: [String: SessionDataHandler] = [:]
 
+    typealias ChatEventHandler = (ChatEvent) -> Void
+    private var chatHandlers: [String: ChatEventHandler] = [:]
+    private var pendingChatHistory: [String: ([ChatEvent], UInt64) -> Void] = [:]
+
     // Callbacks for control events
     var onSessionReady: ((String) -> Void)?
     var onError: ((String) -> Void)?
@@ -252,6 +256,23 @@ final class RelayWebSocket: NSObject, ObservableObject {
                 onError?(msg)
             }
 
+        case "chat_event":
+            guard let sessionID = payload["session_id"] as? String,
+                  let raw = payload["event"],
+                  let data = try? JSONSerialization.data(withJSONObject: raw),
+                  let event = try? JSONDecoder().decode(ChatEvent.self, from: data) else { return }
+            chatHandlers[sessionID]?(event)
+
+        case "chat_history_result":
+            guard let requestID = payload["request_id"] as? String else { return }
+            let rawEvents = payload["events"] as? [[String: Any]] ?? []
+            let events: [ChatEvent] = rawEvents.compactMap { dict in
+                guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+                return try? JSONDecoder().decode(ChatEvent.self, from: data)
+            }
+            let nextSeq = (payload["next_seq"] as? NSNumber)?.uint64Value ?? 1
+            pendingChatHistory.removeValue(forKey: requestID)?(events, nextSeq)
+
         default:
             break
         }
@@ -270,6 +291,14 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     func unregisterSessionHandler(sessionID: String) {
         sessionHandlers.removeValue(forKey: sessionID)
+    }
+
+    func registerChatHandler(sessionID: String, handler: @escaping ChatEventHandler) {
+        chatHandlers[sessionID] = handler
+    }
+
+    func unregisterChatHandler(sessionID: String) {
+        chatHandlers.removeValue(forKey: sessionID)
     }
 
     // MARK: - Send API
@@ -312,6 +341,49 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     func requestAgentList() {
         sendJSON(["type": "list", "payload": [:] as [String: Any]])
+    }
+
+    func sendChatConnect(agentID: String, sessionID: String, cwd: String,
+                         name: String? = nil, model: String? = nil) {
+        var payload: [String: Any] = [
+            "agent_id": agentID,
+            "session_id": sessionID,
+            "kind": "chat",
+            "cwd": cwd
+        ]
+        if let name, !name.isEmpty { payload["name"] = name }
+        if let model, !model.isEmpty { payload["model"] = model }
+        sendJSON(["type": "connect", "payload": payload])
+    }
+
+    func sendChatMessage(sessionID: String, text: String) {
+        sendJSON(["type": "chat_send",
+                  "payload": ["session_id": sessionID, "text": text] as [String: Any]])
+    }
+
+    func sendChatInterrupt(sessionID: String) {
+        sendJSON(["type": "chat_interrupt",
+                  "payload": ["session_id": sessionID] as [String: Any]])
+    }
+
+    /// Requests missed events. Completion runs exactly once: with the tail,
+    /// or empty after a 5-second timeout.
+    func requestChatHistory(agentID: String, sessionID: String, afterSeq: UInt64,
+                            completion: @escaping ([ChatEvent], UInt64) -> Void) {
+        let requestID = UUID().uuidString
+        pendingChatHistory[requestID] = completion
+        sendJSON([
+            "type": "chat_history",
+            "payload": [
+                "agent_id": agentID, "session_id": sessionID,
+                "request_id": requestID, "after_seq": afterSeq
+            ] as [String: Any]
+        ])
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard let self else { return }
+            self.pendingChatHistory.removeValue(forKey: requestID)?([], 0)
+        }
     }
 
     // MARK: - File System API

@@ -27,9 +27,13 @@ struct SessionTabsView: View {
             ?? sessionManager.sessions.first
     }
 
+    var activeChatSession: ChatSession? {
+        sessionManager.chatSessions.first { $0.id == selectedSessionID }
+    }
+
     var body: some View {
         Group {
-            if sessionManager.sessions.isEmpty {
+            if sessionManager.sessions.isEmpty && sessionManager.chatSessions.isEmpty {
                 waitingView
             } else {
                 mainView
@@ -95,6 +99,12 @@ struct SessionTabsView: View {
                 selectedSessionID = last.id
             }
         }
+        .onChange(of: sessionManager.chatSessions) { _, chats in
+            if let last = chats.last,
+               selectedSessionID == nil || !chats.contains(where: { $0.id == selectedSessionID }) {
+                selectedSessionID = last.id
+            }
+        }
         // Dismiss keyboard whenever the user switches away from the Terminal tab.
         // Without this, SwiftTerm keeps first responder and the keyboard covers the tab bar.
         .onChange(of: activeTab) { _, _ in
@@ -110,7 +120,19 @@ struct SessionTabsView: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             // Session name button — uses ObservedObject wrapper for live updates
-            if let session = activeSession {
+            if let chat = activeChatSession {
+                Button { showMachineSelector = true } label: {
+                    HStack(spacing: 5) {
+                        Text(chat.customName)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else if let session = activeSession {
                 SessionNameButton(session: session) {
                     showMachineSelector = true
                 }
@@ -240,7 +262,10 @@ struct SessionTabsView: View {
 
     @ViewBuilder
     private var terminalTab: some View {
-        if let session = activeSession {
+        if let chat = activeChatSession {
+            ChatSessionView(session: chat)
+                .environmentObject(relay)
+        } else if let session = activeSession {
             TerminalTabContent(session: session)
         } else {
             noSessionPlaceholder
@@ -397,6 +422,28 @@ private struct MachineSelectorSheet: View {
                         Label(
                             "\(sessionManager.sessions.count) active session\(sessionManager.sessions.count == 1 ? "" : "s")",
                             systemImage: "terminal"
+                        )
+                    }
+                }
+
+                // ── Chat sessions ────────────────────────────────────────
+                if !sessionManager.chatSessions.isEmpty {
+                    Section {
+                        ForEach(sessionManager.chatSessions) { chat in
+                            ChatSessionRowView(
+                                session: chat,
+                                isActive: chat.id == selectedSessionID
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedSessionID = chat.id
+                                onDismiss()
+                            }
+                        }
+                    } header: {
+                        Label(
+                            "\(sessionManager.chatSessions.count) chat session\(sessionManager.chatSessions.count == 1 ? "" : "s")",
+                            systemImage: "message"
                         )
                     }
                 }
@@ -635,6 +682,63 @@ private struct SessionRowView: View {
                     .foregroundStyle(.orange)
             }
         }
+    }
+}
+
+// MARK: - ChatSessionRowView
+// Mirrors SessionRowView's style for chat sessions in the machine selector.
+// Rename/close are intentionally not offered here — out of scope for this pass.
+
+private struct ChatSessionRowView: View {
+    @ObservedObject var session: ChatSession
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // Active indicator bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isActive ? Color.accentColor : Color.clear)
+                .frame(width: 3, height: 38)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.customName)
+                    .font(.system(size: 16, weight: isActive ? .semibold : .regular))
+                    .foregroundStyle(.primary)
+
+                HStack(spacing: 6) {
+                    // Agent name (short)
+                    Text(shortAgentName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    // Working badge
+                    if session.isWorking {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 5, height: 5)
+                            Text("working…")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            if isActive {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(Color.accentColor)
+                    .fontWeight(.semibold)
+                    .font(.system(size: 14))
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var shortAgentName: String {
+        session.agent.name.components(separatedBy: ".").first ?? session.agent.name
     }
 }
 

@@ -35,6 +35,10 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     private var toolsUsed = 0
     private var idleTimer: Task<Void, Never>?
 
+    // NOTE: This regex-over-ANSI heuristic exists only because PTY mode has to
+    // guess structure from TUI output. Chat sessions receive typed events
+    // instead (see ChatEvent), so this applies to PTY sessions only and is a
+    // removal candidate once chat mode covers the claude use case.
     private static let toolPattern = try! NSRegularExpression(
         pattern: #"(Bash|Read|Write|Edit|Glob|Grep|WebFetch|WebSearch|Task|NotebookEdit)\s*\("#
     )
