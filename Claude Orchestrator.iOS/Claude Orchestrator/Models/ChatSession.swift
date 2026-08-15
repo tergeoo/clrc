@@ -47,24 +47,45 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     /// dropped on the way in. Leaving `lastSeq` where it was keeps it a
     /// correct lower bound for the replay request; the event itself comes
     /// back as part of that replay and is applied then, in order, by
-    /// `apply(history:)`. The caller re-requests the tail rather than
-    /// rendering a transcript with holes in it.
+    /// `apply(history:)` — including its effect on `isWorking`/`lastError`,
+    /// via the same `updateState` walk used here. The caller re-requests
+    /// the tail rather than rendering a transcript with holes in it.
     func receive(_ event: ChatEvent) -> Bool {
         let hadGap = transcript.hasGap(before: event.seq)
         guard !hadGap else { return true }
 
         transcript = transcript.applying([event])
-
-        switch event.kind {
-        case .turnStart: isWorking = true
-        case .turnEnd:   isWorking = false
-        case .error:     lastError = event.message
-        default:         break
-        }
+        updateState(from: [event])
         return false
     }
 
+    /// Folds a replayed batch into the transcript. Also re-derives
+    /// `isWorking`/`lastError` from the same batch — a gapped event that
+    /// carried a `turnEnd` or `.error` was withheld from `receive` and only
+    /// ever reaches session state through this path, so it must run the
+    /// same state walk as the live path or the spinner/error banner would
+    /// never update for anything that arrived via replay.
     func apply(history events: [ChatEvent]) {
         transcript = transcript.applying(events)
+        updateState(from: events)
+    }
+
+    /// Derives `isWorking`/`lastError` from `events`, walked in `seq` order
+    /// regardless of the order they were passed in. Order matters for a
+    /// multi-event replay batch: the last `turnStart`/`turnEnd` in the
+    /// backlog wins for `isWorking`, and the last `.error` wins for
+    /// `lastError` — e.g. a batch containing `turnStart, ..., turnEnd`
+    /// must leave `isWorking` false, while a batch containing only
+    /// `turnStart` (Claude still mid-turn when the replay was requested)
+    /// must leave it true.
+    private func updateState(from events: [ChatEvent]) {
+        for event in events.sorted(by: { $0.seq < $1.seq }) {
+            switch event.kind {
+            case .turnStart: isWorking = true
+            case .turnEnd:   isWorking = false
+            case .error:     lastError = event.message
+            default:         break
+            }
+        }
     }
 }
