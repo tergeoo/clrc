@@ -237,6 +237,35 @@ func (h *Hub) RouteToAgent(sessionID string, data []byte) {
 	sess.Agent.Send(ctx, websocket.MessageBinary, frame)
 }
 
+// RouteTextToClient forwards a raw text control message to the client that
+// owns sessionID. Unlike RouteToClient it does not wrap in a binary frame —
+// chat traffic is JSON on the text channel.
+func (h *Hub) RouteTextToClient(sessionID string, data []byte) bool {
+	h.mu.RLock()
+	sess, ok := h.sessions[sessionID]
+	h.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return sess.Client.Send(ctx, websocket.MessageText, data) == nil
+}
+
+// RouteTextToAgent forwards a raw text control message to the agent that
+// owns sessionID.
+func (h *Hub) RouteTextToAgent(sessionID string, data []byte) bool {
+	h.mu.RLock()
+	sess, ok := h.sessions[sessionID]
+	h.mu.RUnlock()
+	if !ok {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return sess.Agent.Send(ctx, websocket.MessageText, data) == nil
+}
+
 // encodeBinaryFrame encodes: [4 bytes session_id len][session_id][data]
 func encodeBinaryFrame(sessionID string, data []byte) []byte {
 	sidBytes := []byte(sessionID)
@@ -352,7 +381,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 				continue
 			}
 			switch textMsg.Type {
-			case "sessions_list", "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result":
+			case "sessions_list", "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result", "chat_history_result":
 				var pl struct {
 					RequestID string `json:"request_id"`
 				}
@@ -364,6 +393,12 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 					cl.Send(routeCtx, websocket.MessageText, respData)
 					cancel()
 				}
+			case "chat_event":
+				var pl struct {
+					SessionID string `json:"session_id"`
+				}
+				json.Unmarshal(textMsg.Payload, &pl)
+				hub.RouteTextToClient(pl.SessionID, data)
 			default:
 				log.Printf("Agent %s: %s", agent.ID, data)
 			}
@@ -494,6 +529,38 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 
 		case "fs_list", "fs_mkdir", "fs_delete", "fs_read":
 			handleClientFSRequest(ctx, incoming, client, hub)
+
+		case "chat_send", "chat_interrupt":
+			var pl struct {
+				SessionID string `json:"session_id"`
+			}
+			if err := json.Unmarshal(incoming.Payload, &pl); err != nil {
+				break
+			}
+			hub.RouteTextToAgent(pl.SessionID, data)
+
+		case "chat_history":
+			var pl struct {
+				AgentID   string `json:"agent_id"`
+				SessionID string `json:"session_id"`
+				RequestID string `json:"request_id"`
+				AfterSeq  uint64 `json:"after_seq"`
+			}
+			if err := json.Unmarshal(incoming.Payload, &pl); err != nil || pl.AgentID == "" {
+				break
+			}
+			agent, ok := hub.GetAgent(pl.AgentID)
+			if !ok {
+				break
+			}
+			hub.pendingRequests.Store(pl.RequestID, client)
+			fwd := Message{Type: "chat_history", Payload: mustMarshal(map[string]any{
+				"session_id": pl.SessionID,
+				"request_id": pl.RequestID,
+				"after_seq":  pl.AfterSeq,
+			})}
+			fwdData, _ := json.Marshal(fwd)
+			agent.Send(ctx, websocket.MessageText, fwdData)
 
 		case "list":
 			agents := hub.GetAgentList()
