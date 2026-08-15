@@ -66,6 +66,57 @@ final class SessionManager: ObservableObject {
                     name: session.customName
                 )
             }
+            self.reattachChatSessions()
+        }
+    }
+
+    // MARK: - Chat reattach (C1)
+
+    /// The relay drops every session belonging to a client as soon as that
+    /// client unregisters — which happens on *any* reconnect (backgrounding,
+    /// Wi-Fi → cellular, a failed ping, a relay restart). Unlike PTY
+    /// sessions, a chat session that isn't re-`connect`ed has no way to ever
+    /// hear from its agent again, and no live event will arrive to trigger
+    /// the gap-triggered replay either — so the history request here is not
+    /// an optimization, it's required to notice a turn that finished while
+    /// the app was away.
+    private func reattachChatSessions() {
+        let snapshots = chatSessions.map {
+            ChatSessionSnapshot(id: $0.id, agentID: $0.agent.id, cwd: $0.cwd,
+                                name: $0.customName, lastSeq: $0.transcript.lastSeq)
+        }
+        for action in ChatReattachPlanner.plan(chatSessions: snapshots) {
+            relay.sendChatConnect(agentID: action.agentID, sessionID: action.sessionID,
+                                  cwd: action.cwd, name: action.name)
+            if let session = chatSessions.first(where: { $0.id == action.sessionID }) {
+                startChatReplay(for: session)
+            }
+        }
+    }
+
+    /// Requests the tail of a chat session's history and folds it in.
+    /// Also the mechanism behind M9: while `isReplaying` is true, live
+    /// events that turn out to be gapped are recorded (not dropped) via
+    /// `highWaterSeqDuringReplay`; once this replay lands, if that
+    /// high-water mark is still ahead of `transcript.lastSeq`, another
+    /// replay is started immediately rather than waiting for some later
+    /// event to happen to trigger one.
+    private func startChatReplay(for session: ChatSession) {
+        session.isReplaying = true
+        session.highWaterSeqDuringReplay = 0
+        relay.requestChatHistory(
+            agentID: session.agent.id,
+            sessionID: session.id,
+            afterSeq: session.transcript.lastSeq
+        ) { [weak self, weak session] events, _ in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                session.apply(history: events)
+                session.isReplaying = false
+                if session.highWaterSeqDuringReplay > session.transcript.lastSeq {
+                    self.startChatReplay(for: session)
+                }
+            }
         }
     }
 
@@ -145,18 +196,16 @@ final class SessionManager: ObservableObject {
             Task { @MainActor in
                 guard let self, let session else { return }
                 guard session.receive(event) else { return }
-                guard !session.isReplaying else { return } // a replay for this gap is already in flight
-                session.isReplaying = true
-                self.relay.requestChatHistory(
-                    agentID: session.agent.id,
-                    sessionID: session.id,
-                    afterSeq: session.transcript.lastSeq
-                ) { events, _ in
-                    Task { @MainActor in
-                        session.apply(history: events)
-                        session.isReplaying = false
-                    }
+                guard !session.isReplaying else {
+                    // A replay for an earlier gap is already in flight; this
+                    // event would otherwise be dropped silently (M9).
+                    // Remember how far ahead we are so the completion
+                    // handler in `startChatReplay` can chain another
+                    // request instead of leaving the transcript stuck.
+                    session.highWaterSeqDuringReplay = max(session.highWaterSeqDuringReplay, event.seq)
+                    return
                 }
+                self.startChatReplay(for: session)
             }
         }
 

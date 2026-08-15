@@ -24,6 +24,15 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     /// 5-second timeout.
     var isReplaying = false
 
+    /// Highest `seq` of a live event that arrived (and was dropped as a gap)
+    /// while a replay was already in flight. `SessionManager` checks this
+    /// once the in-flight replay completes and, if it is still ahead of
+    /// `transcript.lastSeq`, issues one more replay — otherwise a live event
+    /// dropped mid-replay (e.g. the `turn_end` that would clear `isWorking`)
+    /// is only ever recovered by luck, when some later event happens to
+    /// trigger another gap check.
+    var highWaterSeqDuringReplay: UInt64 = 0
+
     init(agent: Agent, cwd: String, customName: String) {
         self.id = UUID().uuidString.lowercased()
         self.agent = agent
@@ -70,22 +79,17 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
         updateState(from: events)
     }
 
-    /// Derives `isWorking`/`lastError` from `events`, walked in `seq` order
-    /// regardless of the order they were passed in. Order matters for a
-    /// multi-event replay batch: the last `turnStart`/`turnEnd` in the
-    /// backlog wins for `isWorking`, and the last `.error` wins for
-    /// `lastError` — e.g. a batch containing `turnStart, ..., turnEnd`
-    /// must leave `isWorking` false, while a batch containing only
-    /// `turnStart` (Claude still mid-turn when the replay was requested)
-    /// must leave it true.
+    /// Derives `isWorking`/`lastError` from `events` via `ChatStateDeriver`
+    /// (pure logic, tested in `ClrcCore`), folded onto the session's current
+    /// state. Order within `events` doesn't matter — the deriver sorts by
+    /// `seq` itself — which matters for a multi-event replay batch: the last
+    /// `turnStart`/`turnEnd` in the backlog wins for `isWorking`, e.g. a
+    /// batch containing `turnStart, ..., turnEnd` must leave `isWorking`
+    /// false, while a batch containing only `turnStart` (Claude still
+    /// mid-turn when the replay was requested) must leave it true.
     private func updateState(from events: [ChatEvent]) {
-        for event in events.sorted(by: { $0.seq < $1.seq }) {
-            switch event.kind {
-            case .turnStart: isWorking = true
-            case .turnEnd:   isWorking = false
-            case .error:     lastError = event.message
-            default:         break
-            }
-        }
+        let state = ChatStateDeriver.deriving(events, from: ChatSessionState(isWorking: isWorking, lastError: lastError))
+        isWorking = state.isWorking
+        lastError = state.lastError
     }
 }
