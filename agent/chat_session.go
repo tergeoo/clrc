@@ -27,11 +27,25 @@ type ChatSession struct {
 	emit func(sessionID string, events []ChatEvent)
 	buf  *ChatBuffer
 
-	mu       sync.Mutex
-	cmd      *exec.Cmd
-	stdin    io.WriteCloser
-	started  bool // a process has run before, so the next spawn resumes
-	closed   bool
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	started bool // a process has run before, so the next spawn resumes
+	closed  bool
+
+	// reaping counts processes that have been started but not yet Wait()-ed
+	// on by readStdout. It is a distinct piece of state from s.cmd/s.stdin
+	// on purpose: s.cmd is "the handle Send should currently write to", which
+	// Interrupt clears immediately so the next Send respawns; reaping is
+	// "is a subprocess still outstanding", which only readStdout may clear,
+	// strictly after cmd.Wait() returns. Close must gate closing doneCh on
+	// reaping, not on s.cmd == nil, or an Interrupt-then-Close can close
+	// doneCh before the interrupted process has actually been reaped. A
+	// counter (not a bool) because Interrupt-then-Send can leave two
+	// processes outstanding at once: the interrupted one, still draining in
+	// its own readStdout goroutine, and the freshly respawned one.
+	reaping int
+
 	doneCh   chan struct{}
 	doneOnce sync.Once
 }
@@ -117,6 +131,7 @@ func (s *ChatSession) ensureProcess() error {
 	s.cmd = cmd
 	s.stdin = stdin
 	s.started = true
+	s.reaping++
 
 	go s.readStdout(cmd, stdout)
 	go s.readStderr(stderr)
@@ -135,16 +150,22 @@ func (s *ChatSession) readStdout(cmd *exec.Cmd, stdout io.ReadCloser) {
 	}
 	_ = cmd.Wait()
 
-	// Clear the handle so the next Send respawns with --resume.
+	// Clear the handle so the next Send respawns with --resume, and mark
+	// this process as reaped. Both happen only now, after cmd.Wait() has
+	// actually returned — never in Interrupt, which only clears the handle.
 	s.mu.Lock()
 	if s.cmd == cmd {
 		s.cmd = nil
 		s.stdin = nil
 	}
+	if s.reaping > 0 {
+		s.reaping--
+	}
 	closed := s.closed
+	reaping := s.reaping
 	s.mu.Unlock()
 
-	if closed {
+	if closed && reaping == 0 {
 		s.doneOnce.Do(func() { close(s.doneCh) })
 	}
 }
@@ -226,6 +247,15 @@ func (s *ChatSession) History(afterSeq uint64) []ChatEvent {
 	return s.buf.Since(afterSeq)
 }
 
+// NextSeq reports the seq the session's next event will receive.
+func (s *ChatSession) NextSeq() uint64 { return s.buf.NextSeq() }
+
+// Close tears the session down. If a process is still outstanding (started
+// but not yet reaped by readStdout — tracked by s.reaping, not by s.cmd,
+// since Interrupt clears s.cmd well before the process is actually reaped),
+// Close only kills whatever live handle remains and lets readStdout close
+// doneCh once reaping reaches zero. Only when nothing is outstanding does
+// Close close doneCh itself.
 func (s *ChatSession) Close() {
 	s.mu.Lock()
 	if s.closed {
@@ -235,6 +265,7 @@ func (s *ChatSession) Close() {
 	s.closed = true
 	cmd := s.cmd
 	stdin := s.stdin
+	reaping := s.reaping
 	s.mu.Unlock()
 
 	if stdin != nil {
@@ -242,7 +273,8 @@ func (s *ChatSession) Close() {
 	}
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Kill()
-	} else {
+	}
+	if reaping == 0 {
 		s.doneOnce.Do(func() { close(s.doneCh) })
 	}
 }
