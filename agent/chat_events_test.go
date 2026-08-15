@@ -214,3 +214,68 @@ func TestTranslateRealStream(t *testing.T) {
 		t.Errorf("translator filtered nothing: %d events from %d lines", len(events), lines)
 	}
 }
+
+func TestDecodeContentArray(t *testing.T) {
+	// tool_result with array of text blocks should extract and join with newlines.
+	line := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":false,"content":[{"type":"text","text":"line one"},{"type":"text","text":"line two"}]}]}}`
+	got := TranslateLine([]byte(line), "t")
+	if len(got) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(got))
+	}
+	if got[0].Output != "line one\nline two" {
+		t.Fatalf("array blocks not joined: got %q, want %q", got[0].Output, "line one\nline two")
+	}
+}
+
+func TestDecodeContentPlainString(t *testing.T) {
+	// tool_result with plain string content should pass through unchanged (fast path).
+	line := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":false,"content":"plain string output"}]}}`
+	got := TranslateLine([]byte(line), "t")
+	if len(got) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(got))
+	}
+	if got[0].Output != "plain string output" {
+		t.Fatalf("plain string corrupted: got %q", got[0].Output)
+	}
+}
+
+func TestDecodeContentNoTextBlocks(t *testing.T) {
+	// tool_result with array containing no text blocks should fall back to raw JSON.
+	line := `{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":false,"content":[{"type":"image","source":{}}]}]}}`
+	got := TranslateLine([]byte(line), "t")
+	if len(got) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(got))
+	}
+	if got[0].Output == "" {
+		t.Fatalf("non-text blocks should fall back to raw JSON, not empty string")
+	}
+	if !strings.Contains(got[0].Output, "image") {
+		t.Fatalf("expected raw JSON in output, got %q", got[0].Output)
+	}
+}
+
+func TestTruncatePayloadUTF8(t *testing.T) {
+	// Payload with multibyte UTF-8 characters should truncate on rune boundary.
+	long := strings.Repeat("я", maxPayloadBytes/2+100) // Each "я" is 2 bytes in UTF-8
+	s, tr := truncatePayload(long)
+	if !tr {
+		t.Fatal("long payload should report truncated")
+	}
+	if len(s) > maxPayloadBytes {
+		t.Fatalf("payload not capped: %d bytes (max %d)", len(s), maxPayloadBytes)
+	}
+	// Check that the result is valid UTF-8.
+	if !isValidUTF8(s) {
+		t.Fatalf("result contains invalid UTF-8")
+	}
+}
+
+// isValidUTF8 checks if a string contains only valid UTF-8.
+func isValidUTF8(s string) bool {
+	for _, r := range s {
+		if r == -1 { // -1 is the replacement character for invalid UTF-8
+			return false
+		}
+	}
+	return true
+}

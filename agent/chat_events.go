@@ -1,6 +1,9 @@
 package agent
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // maxPayloadBytes caps tool input/output so a single event cannot approach
 // the relay's 4 MB message limit (see spec §6.4).
@@ -74,11 +77,13 @@ type rawBlock struct {
 }
 
 // truncatePayload caps a payload at maxPayloadBytes, reporting whether it cut.
+// It respects UTF-8 boundaries: if truncation lands mid-sequence, the result
+// is trimmed back to the last complete rune.
 func truncatePayload(s string) (string, bool) {
 	if len(s) <= maxPayloadBytes {
 		return s, false
 	}
-	return s[:maxPayloadBytes], true
+	return strings.ToValidUTF8(s[:maxPayloadBytes], ""), true
 }
 
 // decodeContent renders a tool_result content field, which the CLI emits
@@ -87,10 +92,28 @@ func decodeContent(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
 	}
+	// Fast path: plain string.
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
 		return s
 	}
+	// Array of blocks: extract text fields and join with newlines.
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &blocks); err == nil {
+		var texts []string
+		for _, b := range blocks {
+			if b.Type == "text" && b.Text != "" {
+				texts = append(texts, b.Text)
+			}
+		}
+		if len(texts) > 0 {
+			return strings.Join(texts, "\n")
+		}
+	}
+	// No text blocks found: fall back to raw JSON.
 	return string(raw)
 }
 
