@@ -22,8 +22,26 @@ final class AuthService: ObservableObject {
 
     var currentAccessToken: String? { accessToken }
 
+    /// Points this service at a different relay. Tokens stored in the
+    /// Keychain are not scoped per relay — there is one fixed
+    /// `keychainKey` — so a token minted by relay A is otherwise
+    /// indistinguishable from one minted by relay B and would be presented
+    /// to B as if it were valid. Without clearing here, switching relays
+    /// (or the app's default relay URL itself changing between releases,
+    /// with old tokens still sitting in the Keychain from before) makes
+    /// `loadFromKeychain()` report `isAuthenticated = true` for a token the
+    /// new relay will reject on the first authenticated call — which reads
+    /// to the user as the app failing, rather than as "please sign in
+    /// again".
+    ///
+    /// Guarded on an actual change: `login()` re-applies the current URL on
+    /// every sign-in attempt, and this must not log the user out of a
+    /// freshly-completed login just because that call re-states the same
+    /// relay it already knows about.
     func updateRelayURL(_ url: URL) {
+        guard url.absoluteString != relayURL.absoluteString else { return }
         relayURL = url
+        logout()
     }
 
     // MARK: - Login
