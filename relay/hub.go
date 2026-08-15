@@ -537,7 +537,9 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 			if err := json.Unmarshal(incoming.Payload, &pl); err != nil {
 				break
 			}
-			hub.RouteTextToAgent(pl.SessionID, data)
+			if !hub.RouteTextToAgent(pl.SessionID, data) {
+				log.Printf("%s dropped: no route for session %s", incoming.Type, pl.SessionID)
+			}
 
 		case "chat_history":
 			var pl struct {
@@ -546,7 +548,7 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 				RequestID string `json:"request_id"`
 				AfterSeq  uint64 `json:"after_seq"`
 			}
-			if err := json.Unmarshal(incoming.Payload, &pl); err != nil || pl.AgentID == "" {
+			if err := json.Unmarshal(incoming.Payload, &pl); err != nil || pl.AgentID == "" || pl.RequestID == "" {
 				break
 			}
 			agent, ok := hub.GetAgent(pl.AgentID)

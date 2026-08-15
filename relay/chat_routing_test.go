@@ -1,16 +1,39 @@
 package relay
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"nhooyr.io/websocket"
 )
+
+// syncBuffer is a bytes.Buffer guarded by a mutex — log.Logger writes from
+// the server's goroutine while the test reads concurrently, and plain
+// bytes.Buffer is not safe for that under -race.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 const (
 	testAgentSecret = "test-agent-secret"
@@ -66,13 +89,24 @@ func writeMsg(t *testing.T, conn *websocket.Conn, msgType string, payload any) {
 // readUntil reads text frames until one has the wanted type, or times out.
 func readUntil(t *testing.T, conn *websocket.Conn, want string) Message {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	msg, ok := tryReadUntil(t, conn, want, 5*time.Second)
+	if !ok {
+		t.Fatalf("timed out waiting for %q", want)
+	}
+	return msg
+}
+
+// tryReadUntil is readUntil without the fatal timeout, for asserting that a
+// message type does NOT arrive within a bounded window.
+func tryReadUntil(t *testing.T, conn *websocket.Conn, want string, timeout time.Duration) (Message, bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		ctx, cancel := context.WithDeadline(context.Background(), deadline)
 		typ, data, err := conn.Read(ctx)
 		cancel()
 		if err != nil {
-			t.Fatalf("read waiting for %q: %v", want, err)
+			return Message{}, false
 		}
 		if typ != websocket.MessageText {
 			continue
@@ -82,11 +116,10 @@ func readUntil(t *testing.T, conn *websocket.Conn, want string) Message {
 			continue
 		}
 		if msg.Type == want {
-			return msg
+			return msg, true
 		}
 	}
-	t.Fatalf("timed out waiting for %q", want)
-	return Message{}
+	return Message{}, false
 }
 
 // connectPair wires up an agent and a client sharing one session.
@@ -190,5 +223,58 @@ func TestChatHistoryUsesRequestCorrelation(t *testing.T) {
 	json.Unmarshal(got.Payload, &gotPayload)
 	if gotPayload["request_id"] != "req-1" {
 		t.Fatalf("request_id not correlated: %+v", gotPayload)
+	}
+}
+
+// TestChatSendToUnknownSessionIsLogged is the regression test for review
+// Finding 7 (first half): RouteTextToAgent's bool was discarded, so a
+// chat_send/chat_interrupt for a session with no route (e.g. the agent
+// already dropped it) vanished in total silence — exactly what would have
+// made the Critical Interrupt defect visible instead of invisible.
+func TestChatSendToUnknownSessionIsLogged(t *testing.T) {
+	_, auth, base := newTestRelay(t)
+
+	token, err := auth.GenerateAccessToken()
+	if err != nil {
+		t.Fatalf("mint token: %v", err)
+	}
+	client := dial(t, base+"/ws/client")
+	writeMsg(t, client, "auth", map[string]any{"token": token})
+	time.Sleep(100 * time.Millisecond) // let auth settle
+
+	var logBuf syncBuffer
+	orig := log.Writer()
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(orig)
+
+	writeMsg(t, client, "chat_send", map[string]any{
+		"session_id": "no-such-session", "text": "hello",
+	})
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logBuf.String(), "no-such-session") {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("expected a dropped-route log for chat_send to an unknown session; got %q", logBuf.String())
+}
+
+// TestChatHistoryRejectsEmptyRequestID mirrors the guard
+// handleClientFSRequest already has (pl.RequestID == ""): storing an empty
+// request_id in pendingRequests is never useful and risks one client's
+// blank-request_id bug clobbering another's pending entry.
+func TestChatHistoryRejectsEmptyRequestID(t *testing.T) {
+	agent, client := connectPair(t)
+	readUntil(t, agent, "connect")
+
+	writeMsg(t, client, "chat_history", map[string]any{
+		"agent_id": testAgentID, "session_id": testSessionID,
+		"request_id": "", "after_seq": 0,
+	})
+
+	if _, ok := tryReadUntil(t, agent, "chat_history", 500*time.Millisecond); ok {
+		t.Fatal("chat_history with an empty request_id must not be forwarded to the agent")
 	}
 }
