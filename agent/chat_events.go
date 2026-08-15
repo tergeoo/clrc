@@ -1,0 +1,108 @@
+package agent
+
+import "encoding/json"
+
+// maxPayloadBytes caps tool input/output so a single event cannot approach
+// the relay's 4 MB message limit (see spec §6.4).
+const maxPayloadBytes = 4096
+
+// ChatEventKind enumerates the normalised event types sent to clients.
+// This is our contract — deliberately narrower and more stable than the
+// Claude Code stream format it is derived from.
+type ChatEventKind string
+
+const (
+	EventTurnStart  ChatEventKind = "turn_start"
+	EventText       ChatEventKind = "text"
+	EventToolUse    ChatEventKind = "tool_use"
+	EventToolResult ChatEventKind = "tool_result"
+	EventTurnEnd    ChatEventKind = "turn_end"
+	EventError      ChatEventKind = "error"
+)
+
+// ChatEvent is one normalised event. Seq is stamped by ChatBuffer.Append,
+// never by the translator — translation stays a pure function of its input.
+type ChatEvent struct {
+	Kind ChatEventKind `json:"kind"`
+	Seq  uint64        `json:"seq"`
+	TS   string        `json:"ts"`
+
+	Text string `json:"text,omitempty"`
+
+	ToolID    string `json:"tool_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Input     string `json:"input,omitempty"`
+	Output    string `json:"output,omitempty"`
+	OK        *bool  `json:"ok,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+
+	NumTurns   int     `json:"num_turns,omitempty"`
+	CostUSD    float64 `json:"cost_usd,omitempty"`
+	DurationMS int     `json:"duration_ms,omitempty"`
+	StopReason string  `json:"stop_reason,omitempty"`
+
+	Message string `json:"message,omitempty"`
+}
+
+// rawLine is the subset of the Claude Code stream-json envelope we read.
+type rawLine struct {
+	Type    string `json:"type"`
+	Subtype string `json:"subtype"`
+	Message struct {
+		Content []rawBlock `json:"content"`
+	} `json:"message"`
+	IsError       bool    `json:"is_error"`
+	NumTurns      int     `json:"num_turns"`
+	TotalCostUSD  float64 `json:"total_cost_usd"`
+	DurationAPIMS int     `json:"duration_api_ms"`
+	StopReason    string  `json:"stop_reason"`
+}
+
+type rawBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// TranslateLine converts one raw JSONL line into zero or more normalised
+// events. It is pure: no IO, no clock, no shared state. Unparseable input
+// yields no events rather than an error — the CLI may write non-JSON to
+// stdout and that must not kill a session.
+func TranslateLine(line []byte, ts string) []ChatEvent {
+	var raw rawLine
+	if err := json.Unmarshal(line, &raw); err != nil {
+		return nil
+	}
+
+	switch raw.Type {
+	case "system":
+		if raw.Subtype == "init" {
+			return []ChatEvent{{Kind: EventTurnStart, TS: ts}}
+		}
+		return nil
+
+	case "assistant":
+		var out []ChatEvent
+		for _, b := range raw.Message.Content {
+			if b.Type == "text" && b.Text != "" {
+				out = append(out, ChatEvent{Kind: EventText, TS: ts, Text: b.Text})
+			}
+		}
+		return out
+
+	case "result":
+		out := []ChatEvent{{
+			Kind:       EventTurnEnd,
+			TS:         ts,
+			NumTurns:   raw.NumTurns,
+			CostUSD:    raw.TotalCostUSD,
+			DurationMS: raw.DurationAPIMS,
+			StopReason: raw.StopReason,
+		}}
+		if raw.IsError {
+			out = append(out, ChatEvent{Kind: EventError, TS: ts, Message: "turn ended with an error"})
+		}
+		return out
+	}
+
+	return nil
+}
