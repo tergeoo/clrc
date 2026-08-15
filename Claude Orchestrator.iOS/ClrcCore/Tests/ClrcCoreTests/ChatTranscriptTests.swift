@@ -52,3 +52,31 @@ func toleratesMissingTurnStart() {
     #expect(transcript.turns.count == 1)
     #expect(transcript.turns[0].events.count == 1)
 }
+
+// Defect 3 regression: an agent restart resets the in-memory seq counter to
+// 1. A reattached client holding a stale, higher lastSeq must detect that
+// from the reply's next_seq coming back lower than its own lastSeq — not
+// treat it as just another caught-up reply — or the tab freezes forever
+// with every future event silently dropped as "already seen".
+
+@Test("A next_seq lower than lastSeq signals a buffer reset")
+func detectsBufferReset() {
+    let transcript = ChatTranscript().applying([event(.turnStart, 1), event(.text, 50, text: "x")])
+    #expect(transcript.lastSeq == 50)
+    #expect(transcript.isBehindBufferReset(replyNextSeq: 2))
+    #expect(transcript.isBehindBufferReset(replyNextSeq: 0))
+}
+
+@Test("A next_seq at or ahead of lastSeq is not a reset")
+func doesNotFalselyDetectResetWhenCaughtUpOrAhead() {
+    let transcript = ChatTranscript().applying([event(.turnStart, 1), event(.text, 50, text: "x")])
+    #expect(!transcript.isBehindBufferReset(replyNextSeq: 50)) // exactly caught up
+    #expect(!transcript.isBehindBufferReset(replyNextSeq: 51)) // new events arrived normally
+}
+
+@Test("A fresh transcript is never seen as behind a reset")
+func freshTranscriptNeverLooksReset() {
+    let transcript = ChatTranscript()
+    #expect(!transcript.isBehindBufferReset(replyNextSeq: 0))
+    #expect(!transcript.isBehindBufferReset(replyNextSeq: 5))
+}

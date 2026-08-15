@@ -52,4 +52,20 @@ public struct ChatTranscript: Sendable, Equatable {
     public func hasGap(before seq: UInt64) -> Bool {
         seq > lastSeq + 1
     }
+
+    /// True when a history reply's `next_seq` is *behind* this transcript's
+    /// `lastSeq` — the signal that the agent's in-memory seq counter has
+    /// gone backwards, not that anything was merely missed. `seq` is
+    /// strictly monotonic for the life of one agent process (`ChatBuffer`
+    /// never rewinds it), so the only way a reply can report a high-water
+    /// mark lower than what we already applied is that the buffer itself is
+    /// new — e.g. the agent restarted (a reboot, or `clrc restart`) and
+    /// started counting again from 1. Continuing to compare future replies
+    /// and live events against the old, now-stale `lastSeq` would make
+    /// every one of them look "already seen" and silently drop them
+    /// forever, freezing the tab with no error. The caller must discard the
+    /// transcript and rebuild it from this new counter instead.
+    public func isBehindBufferReset(replyNextSeq: UInt64) -> Bool {
+        replyNextSeq < lastSeq
+    }
 }
