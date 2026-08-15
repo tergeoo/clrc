@@ -423,6 +423,15 @@ func (c *WSClient) handleChatHistory(ctx context.Context, payload json.RawMessag
 	if sess := c.chatSession(req.SessionID); sess != nil {
 		events, nextSeq = sess.HistoryPage(req.AfterSeq, chatHistoryPageBytes)
 	}
+	if events == nil {
+		// ChatBuffer.SincePage always hands back a non-nil (possibly empty)
+		// slice today, but that is an invariant of its implementation, not
+		// of this function's signature — guard here too so a caller fully
+		// caught up always gets JSON "events":[], never "events":null. iOS
+		// tolerates null (its decoder defaults to an empty array), but
+		// nothing guarantees every future client will.
+		events = []ChatEvent{}
+	}
 	c.sendTextMsg(ctx, "chat_history_result", map[string]any{
 		"request_id": req.RequestID,
 		"events":     events,

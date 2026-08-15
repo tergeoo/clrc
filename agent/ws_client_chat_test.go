@@ -186,3 +186,55 @@ func TestHandleChatHistoryUsesPageBudget(t *testing.T) {
 		t.Fatal("nextSeq must not claim full replay when the page was capped")
 	}
 }
+
+// TestHandleChatHistoryReturnsEmptyArrayNotNullWhenCaughtUp is the
+// regression test for the "Also fix" item in the post-wave-fixes report: a
+// caller fully caught up (after_seq at or past everything the buffer holds)
+// must get back JSON "events":[], never "events":null. iOS's decoder
+// tolerates null today, but nothing guarantees every future client will, and
+// the whole point of a page reply is that a caught-up caller can tell "no
+// more events" apart from "malformed reply". Follows the same pattern as
+// TestHandleChatHistoryUsesPageBudget above: conn is nil, so
+// handleChatHistory itself only exercises the no-panic path; the actual
+// wire shape is asserted by marshalling exactly what handleChatHistory would
+// send, built from the same HistoryPage call it makes internally.
+func TestHandleChatHistoryReturnsEmptyArrayNotNullWhenCaughtUp(t *testing.T) {
+	c := &WSClient{chats: make(map[string]*ChatSession)}
+	noop := func(string, []ChatEvent) {}
+	s := NewChatSession("sid", t.TempDir(), "", noop)
+	defer s.Close()
+	c.chats["sid"] = s
+
+	s.buf.Append(ChatEvent{Kind: EventText, Text: "a"}, ChatEvent{Kind: EventText, Text: "b"})
+
+	// after_seq = NextSeq()-1 (the buffer's own tip) — the caller is fully
+	// caught up, so the page must be empty.
+	afterSeq := s.NextSeq() - 1
+	payload, err := json.Marshal(map[string]any{
+		"session_id": "sid", "request_id": "r1", "after_seq": afterSeq,
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	c.handleChatHistory(context.Background(), payload) // conn is nil; just checks no panic
+
+	events, _ := s.HistoryPage(afterSeq, chatHistoryPageBytes)
+	if len(events) != 0 {
+		t.Fatalf("got %d events, want 0 (fully caught up)", len(events))
+	}
+	if events == nil {
+		t.Fatal("HistoryPage returned a nil slice for a fully-caught-up caller — this must marshal to [], not null")
+	}
+
+	// Assert on the actual JSON text, not just the Go value: a nil slice and
+	// an empty-but-non-nil slice are indistinguishable as Go values in this
+	// assertion but marshal differently, and it is the wire text a client
+	// actually has to parse.
+	encoded, err := json.Marshal(map[string]any{"events": events})
+	if err != nil {
+		t.Fatalf("marshal events: %v", err)
+	}
+	if string(encoded) != `{"events":[]}` {
+		t.Fatalf(`marshalled events = %s, want {"events":[]} (not null) when the caller is fully caught up`, encoded)
+	}
+}
