@@ -55,8 +55,16 @@ func TestChatBufferSincePageReturnsEverythingUnderBudget(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("got %d events, want 2", len(events))
 	}
-	if nextSeq != b.NextSeq() {
-		t.Fatalf("nextSeq = %d, want NextSeq() = %d when the caller is fully caught up", nextSeq, b.NextSeq())
+	// nextSeq is a resume token — "ask for events after this seq" — so it
+	// must be the seq of the last event actually handed back (2), not
+	// NextSeq() (3, one past it). Feeding NextSeq() back as afterSeq would
+	// skip whatever event is stamped with seq 3 next.
+	want := events[len(events)-1].Seq
+	if nextSeq != want {
+		t.Fatalf("nextSeq = %d, want %d (the last returned event's seq) when the caller is fully caught up", nextSeq, want)
+	}
+	if nextSeq == b.NextSeq() {
+		t.Fatalf("nextSeq must not equal NextSeq() (%d) — that is one past the last stamped seq and would skip a future event", b.NextSeq())
 	}
 }
 
@@ -85,8 +93,60 @@ func TestChatBufferSincePageCapsByByteBudget(t *testing.T) {
 	if len(events)+len(rest) != 5 {
 		t.Fatalf("got %d + %d = %d events across both pages, want 5", len(events), len(rest), len(events)+len(rest))
 	}
-	if finalNext != b.NextSeq() {
-		t.Fatalf("final page nextSeq = %d, want NextSeq() = %d", finalNext, b.NextSeq())
+	// Same resume-token contract as the uncapped test above: the final page
+	// is not cut, so nextSeq must be the last event's seq, not NextSeq().
+	wantFinal := rest[len(rest)-1].Seq
+	if finalNext != wantFinal {
+		t.Fatalf("final page nextSeq = %d, want %d (the last returned event's seq)", finalNext, wantFinal)
+	}
+	if finalNext == b.NextSeq() {
+		t.Fatalf("final page nextSeq must not equal NextSeq() (%d)", b.NextSeq())
+	}
+}
+
+// TestChatBufferSincePagePagesEndToEnd is the round-trip regression test for
+// Defect 1b: feed the returned nextSeq back in as afterSeq in a loop, the
+// way the client now does, and confirm every event is delivered exactly
+// once, in order, with none skipped — and that the loop actually
+// terminates (a non-advancing nextSeq must stop it, not spin forever).
+func TestChatBufferSincePagePagesEndToEnd(t *testing.T) {
+	b := NewChatBuffer(1000)
+	const total = 37
+	payload := strings.Repeat("x", 50)
+	for i := 0; i < total; i++ {
+		b.Append(ChatEvent{Kind: EventText, Text: payload})
+	}
+
+	var got []ChatEvent
+	afterSeq := uint64(0)
+	const budget = 300 // small enough to force several pages
+	const maxIterations = total + 5
+	iterations := 0
+	for {
+		iterations++
+		if iterations > maxIterations {
+			t.Fatalf("did not converge after %d iterations; afterSeq=%d, got %d events so far", maxIterations, afterSeq, len(got))
+		}
+		page, nextSeq := b.SincePage(afterSeq, budget)
+		got = append(got, page...)
+		if nextSeq <= afterSeq {
+			break // no progress reported — caller must stop, not loop forever
+		}
+		afterSeq = nextSeq
+	}
+
+	if len(got) != total {
+		t.Fatalf("delivered %d events across %d pages, want %d", len(got), iterations, total)
+	}
+	seen := make(map[uint64]bool, total)
+	for i, e := range got {
+		if uint64(i+1) != e.Seq {
+			t.Fatalf("event %d has seq %d, want %d — events must arrive in order", i, e.Seq, i+1)
+		}
+		if seen[e.Seq] {
+			t.Fatalf("seq %d delivered more than once", e.Seq)
+		}
+		seen[e.Seq] = true
 	}
 }
 
