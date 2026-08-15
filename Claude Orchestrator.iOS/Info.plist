@@ -26,7 +26,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Scan a clrc pairing QR code shown by your Mac to connect automatically.</string>
 	<key>RELAY_URL</key>
-	<string>http://192.168.100.222:8080</string>
+	<string>https://clrc-relay-production.up.railway.app</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
