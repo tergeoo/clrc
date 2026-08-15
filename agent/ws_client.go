@@ -323,11 +323,26 @@ func (c *WSClient) handleChatConnect(req connectReq) {
 
 	go func() {
 		<-sess.Done()
-		c.mu.Lock()
-		delete(c.chats, req.SessionID)
-		c.mu.Unlock()
+		c.removeChatIfCurrent(req.SessionID, sess)
 		log.Printf("Chat session ended: %s", req.SessionID)
 	}()
+}
+
+// removeChatIfCurrent deletes the chats[id] entry only if it still points at
+// sess. Without this identity check, an old session's delayed cleanup
+// goroutine (its Done() can fire synchronously from Close(), well before the
+// goroutine actually gets scheduled) can race a fresh connect that reuses
+// the same session id: the disconnect deletes the old entry and closes it,
+// the new connect finds no entry and installs a new session under the same
+// id, and the stale goroutine then wakes up and deletes that new session
+// instead of a no-op — orphaning it. Mirrors the identity check
+// chat_session.go's readStdout already uses for cmd, for the same reason.
+func (c *WSClient) removeChatIfCurrent(id string, sess *ChatSession) {
+	c.mu.Lock()
+	if c.chats[id] == sess {
+		delete(c.chats, id)
+	}
+	c.mu.Unlock()
 }
 
 // sendChatEvents forwards normalised events to the relay as text frames.
@@ -399,7 +414,7 @@ func (c *WSClient) handleChatHistory(ctx context.Context, payload json.RawMessag
 	var nextSeq uint64 = 1
 	if sess := c.chatSession(req.SessionID); sess != nil {
 		events = sess.History(req.AfterSeq)
-		nextSeq = sess.buf.NextSeq()
+		nextSeq = sess.NextSeq()
 	}
 	c.sendTextMsg(ctx, "chat_history_result", map[string]any{
 		"request_id": req.RequestID,
