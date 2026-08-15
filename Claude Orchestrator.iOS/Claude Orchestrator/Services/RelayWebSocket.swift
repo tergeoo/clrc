@@ -134,6 +134,10 @@ final class RelayWebSocket: NSObject, ObservableObject {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         webSocketTask = urlSession.webSocketTask(with: request)
+        // Default is 1 MiB; a large paged chat_history_result would otherwise
+        // silently fail the receive and trigger a reconnect loop. Match the
+        // relay's own maxMessageBytes ceiling (4 MB).
+        webSocketTask?.maximumMessageSize = 4 * 1024 * 1024
         webSocketTask?.resume()
 
         // Send auth message as first message
