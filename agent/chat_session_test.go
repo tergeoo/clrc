@@ -154,8 +154,8 @@ func TestChatSessionRespawnsAfterProcessExit(t *testing.T) {
 	}
 	waitFor(t, read, EventTurnEnd)
 
-	s.Interrupt() // kills the process
-	time.Sleep(100 * time.Millisecond)
+	s.Interrupt() // kills the process and deterministically clears s.cmd/s.stdin
+	time.Sleep(10 * time.Millisecond)
 
 	if err := s.Send("second"); err != nil {
 		t.Fatalf("second send after interrupt: %v", err)

@@ -163,16 +163,27 @@ func (s *ChatSession) readStderr(stderr io.ReadCloser) {
 }
 
 // Send delivers one user message, starting or restarting the process as needed.
+//
+// The lock is held only long enough to (re)spawn the process and grab the
+// current stdin handle — never across the blocking pipe write or an emit
+// callback. A stalled child (e.g. hung inside a tool call) must not be able
+// to block Interrupt/Close by holding s.mu hostage, and emit (which in
+// production writes to the relay socket) must never run under s.mu or a
+// re-entrant call from the callback would deadlock on this non-reentrant
+// mutex.
 func (s *ChatSession) Send(text string) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.closed {
+		s.mu.Unlock()
 		return fmt.Errorf("chat session %s is closed", s.ID)
 	}
-	if err := s.ensureProcess(); err != nil {
-		s.publishError("could not start claude: %v", err)
-		return err
+	startErr := s.ensureProcess()
+	stdin := s.stdin
+	s.mu.Unlock()
+
+	if startErr != nil {
+		s.publishError("could not start claude: %v", startErr)
+		return startErr
 	}
 
 	msg := map[string]any{
@@ -183,21 +194,30 @@ func (s *ChatSession) Send(text string) error {
 	if err != nil {
 		return fmt.Errorf("encode user message for %s: %w", s.ID, err)
 	}
-	if _, err := s.stdin.Write(append(line, '\n')); err != nil {
+	if _, err := stdin.Write(append(line, '\n')); err != nil {
 		s.publishError("could not deliver message: %v", err)
 		return fmt.Errorf("write to chat session %s: %w", s.ID, err)
 	}
 	return nil
 }
 
-// Interrupt stops the current turn by killing the process. The next Send
-// respawns it with --resume, which restores the conversation.
+// Interrupt stops the current turn by killing the process. It clears the
+// process handles itself, under s.mu, immediately after the kill — it does
+// not wait for readStdout to notice the exit. This makes the next Send
+// deterministically see a nil s.cmd and respawn with --resume, instead of
+// racing the reader goroutine's cleanup. readStdout's identity check
+// (`if s.cmd == cmd`) then simply finds a mismatch here and skips its own
+// clear, so cmd.Wait() is still only ever called once, from readStdout.
 func (s *ChatSession) Interrupt() {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	cmd := s.cmd
-	s.mu.Unlock()
 	if cmd != nil && cmd.Process != nil {
 		_ = cmd.Process.Kill()
+	}
+	if s.cmd == cmd {
+		s.cmd = nil
+		s.stdin = nil
 	}
 }
 
