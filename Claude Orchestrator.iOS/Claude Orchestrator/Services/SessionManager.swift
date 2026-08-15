@@ -144,13 +144,17 @@ final class SessionManager: ObservableObject {
         relay.registerChatHandler(sessionID: session.id) { [weak self, weak session] event in
             Task { @MainActor in
                 guard let self, let session else { return }
-                if session.receive(event) {
-                    self.relay.requestChatHistory(
-                        agentID: session.agent.id,
-                        sessionID: session.id,
-                        afterSeq: session.transcript.lastSeq
-                    ) { events, _ in
-                        Task { @MainActor in session.apply(history: events) }
+                guard session.receive(event) else { return }
+                guard !session.isReplaying else { return } // a replay for this gap is already in flight
+                session.isReplaying = true
+                self.relay.requestChatHistory(
+                    agentID: session.agent.id,
+                    sessionID: session.id,
+                    afterSeq: session.transcript.lastSeq
+                ) { events, _ in
+                    Task { @MainActor in
+                        session.apply(history: events)
+                        session.isReplaying = false
                     }
                 }
             }

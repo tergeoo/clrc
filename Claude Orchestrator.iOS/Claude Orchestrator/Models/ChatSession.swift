@@ -18,6 +18,12 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     @Published var isWorking = false
     @Published var lastError: String?
 
+    /// True while a gap-triggered `requestChatHistory` is in flight for this
+    /// session. Guards against firing a second replay request for every
+    /// gapped event in a burst; cleared on both the real reply and the
+    /// 5-second timeout.
+    var isReplaying = false
+
     init(agent: Agent, cwd: String, customName: String) {
         self.id = UUID().uuidString.lowercased()
         self.agent = agent
@@ -33,10 +39,20 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     }
 
     /// Applies one live event. A gap means events were missed while the app
-    /// was backgrounded — the caller re-requests the tail rather than
+    /// was backgrounded. In that case the event is deliberately **not**
+    /// applied: `ChatTranscript.applying` drops anything at or below
+    /// `lastSeq`, so if this gapped event were applied now it would advance
+    /// `lastSeq` past the hole and the replay that follows would arrive
+    /// too late to backfill it — the missing events would be silently
+    /// dropped on the way in. Leaving `lastSeq` where it was keeps it a
+    /// correct lower bound for the replay request; the event itself comes
+    /// back as part of that replay and is applied then, in order, by
+    /// `apply(history:)`. The caller re-requests the tail rather than
     /// rendering a transcript with holes in it.
     func receive(_ event: ChatEvent) -> Bool {
         let hadGap = transcript.hasGap(before: event.seq)
+        guard !hadGap else { return true }
+
         transcript = transcript.applying([event])
 
         switch event.kind {
@@ -45,7 +61,7 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
         case .error:     lastError = event.message
         default:         break
         }
-        return hadGap
+        return false
     }
 
     func apply(history events: [ChatEvent]) {
