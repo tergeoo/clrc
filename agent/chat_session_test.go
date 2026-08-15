@@ -361,6 +361,92 @@ func TestChatSessionInterruptPublishesSyntheticTurnEnd(t *testing.T) {
 	t.Fatalf("expected a synthetic interrupted turn_end from Interrupt(); got %+v", read())
 }
 
+// TestChatSessionInterruptDoesNotPublishExitError is the regression test for
+// Defect 2 of the post-wave fix: SIGINT makes cmd.Wait() in readStdout
+// return a non-nil error ("signal: interrupt", or a 130 exit), which used to
+// be published unconditionally as an `error` event — indistinguishable, on
+// the client, from a genuine crash and rendered as a sticky red banner. So
+// pressing Stop, a normal and deliberate action, looked like a failure.
+// Interrupt must still produce its synthetic interrupted turn_end (so the
+// composer unlocks), but must not also publish an error for the exit that
+// interrupt itself caused.
+func TestChatSessionInterruptDoesNotPublishExitError(t *testing.T) {
+	emit, read := collectEvents()
+	s := NewChatSession("sid", t.TempDir(), "", emit)
+	s.Bin = fakeClaude(t)
+
+	if err := s.Send("hello"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	waitFor(t, read, EventTurnEnd) // the real turn completes normally first
+
+	s.Interrupt()
+
+	deadline := time.Now().Add(5 * time.Second)
+	var sawInterruptedTurnEnd bool
+	for time.Now().Before(deadline) && !sawInterruptedTurnEnd {
+		for _, e := range read() {
+			if e.Kind == EventTurnEnd && e.StopReason == "interrupted" {
+				sawInterruptedTurnEnd = true
+				break
+			}
+		}
+		if !sawInterruptedTurnEnd {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !sawInterruptedTurnEnd {
+		t.Fatalf("expected a synthetic interrupted turn_end from Interrupt(); got %+v", read())
+	}
+
+	// Close and wait for Done(): that forces this test to observe the
+	// interrupted process actually being cmd.Wait()-ed on by readStdout —
+	// exactly where a wrongly-published exit error would appear — before
+	// checking for its absence, rather than racing that goroutine.
+	s.Close()
+	select {
+	case <-s.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("Done() never fired after Interrupt then Close")
+	}
+
+	for _, e := range read() {
+		if e.Kind == EventError {
+			t.Fatalf("unexpected error event after an agent-initiated interrupt: %+v", e)
+		}
+	}
+}
+
+// TestChatSessionNonZeroExitNotFollowingInterruptStillPublishesError is the
+// companion case to TestChatSessionInterruptDoesNotPublishExitError, guarding
+// against the fix overreaching: a process that exits non-zero on its own —
+// not as a result of an Interrupt/Close the agent itself initiated — must
+// still surface an error event. (TestChatSessionNonZeroExitSurfacesError
+// below already exercises this same path; this test names it explicitly as
+// the "genuine exit" half of the Defect 2 pair.)
+func TestChatSessionNonZeroExitNotFollowingInterruptStillPublishesError(t *testing.T) {
+	t.Setenv("FAKE_CLAUDE_MODE", "exit1")
+	emit, read := collectEvents()
+	s := NewChatSession("sid", t.TempDir(), "", emit)
+	s.Bin = fakeClaude(t)
+	defer s.Close()
+
+	if err := s.Send("hello"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, e := range read() {
+			if e.Kind == EventError {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("expected an error event on a genuine non-zero exit unrelated to Interrupt/Close; got %+v", read())
+}
+
 // TestChatSessionInterruptWithNoProcessIsNoop confirms Interrupt does not
 // fabricate a turn_end when there is nothing running to interrupt.
 func TestChatSessionInterruptWithNoProcessIsNoop(t *testing.T) {

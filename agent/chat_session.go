@@ -63,6 +63,23 @@ type ChatSession struct {
 	// its own readStdout goroutine, and the freshly respawned one.
 	reaping int
 
+	// interrupting is the set of *exec.Cmd the agent itself is in the middle
+	// of tearing down via Interrupt or Close. SIGINT (and the SIGKILL
+	// escalation) makes cmd.Wait() in readStdout return a non-nil error —
+	// "signal: interrupt" or a 130 exit — indistinguishable, from Wait()'s
+	// return value alone, from a genuine crash. Without this, pressing Stop
+	// — a normal, deliberate action — would publish the same `error` event
+	// (and sticky red banner on the client) as an unexpected death.
+	//
+	// A set keyed by cmd, not a single pointer or a session-wide bool, for
+	// the same reason s.reaping is a counter, not a bool (see above):
+	// Interrupt-then-Send can leave two processes outstanding at once — the
+	// interrupted one, still draining in its own readStdout goroutine, and
+	// the freshly respawned one — and a second Interrupt or a Close before
+	// the first is reaped must not clobber the first's entry. Each entry is
+	// deleted by readStdout once that specific cmd is actually reaped.
+	interrupting map[*exec.Cmd]struct{}
+
 	doneCh   chan struct{}
 	doneOnce sync.Once
 }
@@ -179,15 +196,20 @@ func (s *ChatSession) readStdout(cmd *exec.Cmd, stdout io.ReadCloser) {
 	}
 
 	waitErr := cmd.Wait()
-	if waitErr != nil {
-		log.Printf("chat session %s: process exited: %v", s.ID, waitErr)
-		s.publishError("claude exited: %v", waitErr)
-	}
 
 	// Clear the handle so the next Send respawns with --resume, and mark
 	// this process as reaped. Both happen only now, after cmd.Wait() has
 	// actually returned — never in Interrupt, which only clears the handle.
+	// selfInitiated is read under the same lock: Interrupt/Close record the
+	// specific cmd they are tearing down in s.interrupting, and it must be
+	// checked here — before it could be overwritten by some later
+	// Interrupt on a respawned process — to correctly attribute *this*
+	// exit's waitErr.
 	s.mu.Lock()
+	_, selfInitiated := s.interrupting[cmd]
+	if selfInitiated {
+		delete(s.interrupting, cmd)
+	}
 	if s.cmd == cmd {
 		s.cmd = nil
 		s.stdin = nil
@@ -198,6 +220,16 @@ func (s *ChatSession) readStdout(cmd *exec.Cmd, stdout io.ReadCloser) {
 	closed := s.closed
 	reaping := s.reaping
 	s.mu.Unlock()
+
+	if waitErr != nil {
+		log.Printf("chat session %s: process exited: %v (agent-initiated=%v)", s.ID, waitErr, selfInitiated)
+		// A termination the agent itself requested (Stop, or Close tearing
+		// the session down) is not a failure — do not raise the client's
+		// error banner for it. A genuine unexpected exit still must.
+		if !selfInitiated {
+			s.publishError("claude exited: %v", waitErr)
+		}
+	}
 
 	if closed && reaping == 0 {
 		s.doneOnce.Do(func() { close(s.doneCh) })
@@ -403,6 +435,15 @@ func (s *ChatSession) Interrupt() {
 		s.cmd = nil
 		s.stdin = nil
 	}
+	if cmd != nil && cmd.Process != nil {
+		// Record which process readStdout should treat as agent-initiated,
+		// so its eventual non-zero cmd.Wait() does not surface as an
+		// `error` event — see the field comment on s.interrupting.
+		if s.interrupting == nil {
+			s.interrupting = make(map[*exec.Cmd]struct{}, 1)
+		}
+		s.interrupting[cmd] = struct{}{}
+	}
 	s.mu.Unlock()
 
 	if cmd == nil || cmd.Process == nil {
@@ -449,6 +490,15 @@ func (s *ChatSession) Close() {
 	cmd := s.cmd
 	stdin := s.stdin
 	reaping := s.reaping
+	if cmd != nil && cmd.Process != nil {
+		// Close also deliberately terminates whatever process is running —
+		// see Interrupt's comment on s.interrupting for why this must be
+		// recorded before signalling.
+		if s.interrupting == nil {
+			s.interrupting = make(map[*exec.Cmd]struct{}, 1)
+		}
+		s.interrupting[cmd] = struct{}{}
+	}
 	s.mu.Unlock()
 
 	if stdin != nil {
