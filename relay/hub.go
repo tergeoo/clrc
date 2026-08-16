@@ -406,6 +406,60 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 	}
 }
 
+// pingInterval is how often the relay pings a connected iOS client to check
+// liveness. pingTimeout bounds each individual ping: long enough to tolerate
+// a slow network, short enough that a client which stopped responding (e.g.
+// a phone that locked or suspended) is noticed in seconds rather than never.
+// Kept equal to the agent's own pingInterval/pingTimeout (agent/ws_client.go)
+// so both ends of the link read alike.
+const (
+	pingInterval = 30 * time.Second
+	pingTimeout  = 10 * time.Second
+)
+
+// pinger is the subset of *websocket.Conn the ping watchdog needs. Extracting
+// it lets tests exercise runPingWatchdog against a real half-open connection
+// without going through the full client handshake.
+type pinger interface {
+	Ping(ctx context.Context) error
+}
+
+// runPingWatchdog pings conn every interval until ctx is done or a ping
+// fails, then returns.
+//
+// Each ping gets its own bounded context derived from ctx, rather than ctx
+// itself. That distinction is the whole point: nhooyr.io/websocket's
+// Conn.Ping blocks until a pong arrives or its context is done. ctx here
+// (the connection's request context) has no deadline of its own, so a client
+// that stops responding — exactly what a phone that locked or suspended
+// looks like — would otherwise leave Ping, and this goroutine, blocked
+// forever. This is the identical defect (and fix) already applied to the
+// agent's own keepalive ping in agent/ws_client.go (commit 645ccc1); see its
+// runPingWatchdog for the fuller writeup of the underlying mechanism.
+//
+// A failed ping is not treated as fatal to the connection here: the read
+// loop in HandleClientWS independently notices a dead client once its own
+// Read fails (see CLAUDE.md on connection lifecycle), so this goroutine's
+// only job is to stop pinging — and stop existing — once the client is no
+// longer answering, not to tear the connection down itself.
+func runPingWatchdog(ctx context.Context, conn pinger, interval, timeout time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			pingCtx, cancelPing := context.WithTimeout(ctx, timeout)
+			err := conn.Ping(pingCtx)
+			cancelPing()
+			if err != nil {
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 // handleClientWS handles WebSocket connections from iOS clients.
 func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -472,21 +526,9 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 	listData, _ := json.Marshal(listMsg)
 	conn.Write(ctx, websocket.MessageText, listData)
 
-	// Start ping goroutine
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := conn.Ping(ctx); err != nil {
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	// Start ping goroutine — see runPingWatchdog for why each ping needs its
+	// own bounded context rather than reusing ctx directly.
+	go runPingWatchdog(ctx, conn, pingInterval, pingTimeout)
 
 	// Read loop
 	for {
