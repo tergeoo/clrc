@@ -73,6 +73,56 @@ func buildSessionsList(live map[string]*PTYSession, disk []SessionInfo) []map[st
 	return out
 }
 
+// pingInterval is how often the connection watchdog pings the relay.
+// pingTimeout bounds each individual ping: long enough to tolerate a slow
+// network, short enough that a Mac waking from sleep notices a half-open
+// connection within seconds rather than never. See runPingWatchdog.
+const (
+	pingInterval = 30 * time.Second
+	pingTimeout  = 10 * time.Second
+)
+
+// pinger is the subset of *websocket.Conn the ping watchdog needs. Extracting
+// it lets tests exercise runPingWatchdog against a fake that hangs forever,
+// without standing up a real socket.
+type pinger interface {
+	Ping(ctx context.Context) error
+}
+
+// runPingWatchdog pings conn every interval and calls cancelConn — then
+// returns — the moment a ping fails or ctx ends.
+//
+// Each ping gets its own bounded context derived from ctx, rather than ctx
+// itself. That distinction is the whole point: nhooyr.io/websocket's
+// Conn.Ping blocks until a pong arrives or its context is done. On a
+// half-open socket (exactly what a sleeping laptop leaves behind), the ping
+// frame goes out fine — TCP hasn't given up yet — but no pong ever comes
+// back. If Ping were given ctx directly (which has no deadline of its own),
+// it would block forever: the watchdog would be stuck inside the very call
+// meant to detect the failure, the ticker would never fire again, and
+// cancelConn would never run. Bounding each ping individually guarantees the
+// watchdog always resurfaces within timeout, even against a peer that never
+// answers.
+func runPingWatchdog(ctx context.Context, conn pinger, interval, timeout time.Duration, cancelConn context.CancelFunc) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			pingCtx, cancelPing := context.WithTimeout(ctx, timeout)
+			err := conn.Ping(pingCtx)
+			cancelPing()
+			if err != nil {
+				log.Printf("Ping failed: %v — triggering reconnect", err)
+				cancelConn()
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 // WSClient manages the persistent WebSocket connection to the relay server.
 type WSClient struct {
 	cfg      *Config
@@ -147,23 +197,7 @@ func (c *WSClient) connect(ctx context.Context) error {
 	connCtx, cancelConn := context.WithCancel(ctx)
 	defer cancelConn()
 
-	// Ping goroutine
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := conn.Ping(connCtx); err != nil {
-					log.Printf("Ping failed: %v — triggering reconnect", err)
-					cancelConn()
-					return
-				}
-			case <-connCtx.Done():
-				return
-			}
-		}
-	}()
+	go runPingWatchdog(connCtx, conn, pingInterval, pingTimeout, cancelConn)
 
 	// Read loop — exits when connCtx is cancelled (ping failure or shutdown).
 	for {
