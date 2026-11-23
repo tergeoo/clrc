@@ -228,3 +228,50 @@ The fake-`claude` script is the mockable boundary that keeps the whole agent sid
 - **Thinking blocks are dropped, not surfaced.** They are large and, for the "give a task and watch" use case, noise. Revisit only if asked.
 - **Interrupt is SIGINT + resume**, not a protocol-level control message, because the former is verified to work and the latter is not.
 - **The event buffer is in memory in this sub-project.** History surviving an agent restart is sub-project 2, and the buffer interface is the seam it plugs into.
+
+## 13. Structured output
+
+Chat replies are formatted for a phone by a Claude Code output style and end with a machine-readable turn report. The styles live outside this repo (`clrc-chat`, `clrc-brief` in the user's Claude config); the agent only selects one and parses its output.
+
+### 13.1 Agent configuration (`~/.config/clrc/.env`)
+
+| Variable | Meaning |
+|---|---|
+| `CLRC_PROFILE` | Claude profile name (`^[a-z0-9-]+$`). Spawned `claude` gets `CLAUDE_CONFIG_DIR=~/.claude-<profile>`; the directory must exist. |
+| `CLRC_CLAUDE_CONFIG_DIR` | Explicit `CLAUDE_CONFIG_DIR` (`~` expanded); wins over `CLRC_PROFILE`. Both unset = CLI default `~/.claude`. |
+| `CLRC_OUTPUT_STYLE` | Default output style for chat sessions, passed as `--settings '{"outputStyle":"<style>"}'`. Unset = `clrc-chat`; set to empty = no `--settings`. Must be a safe identifier. |
+| `CLRC_EXPECTED_HEADER_PREFIX` | Optional. When set, a turn's header must start with it for `context_ok` to be true (e.g. `tergeo · personal`). |
+
+Every spawned process (chat and PTY) also gets `CLRC_SESSION=1`, so hooks and settings can tell a clrc session apart. The config dir and style are applied on spawn and on respawn/resume; a reattach to a live session keeps what it has.
+
+### 13.2 `connect` fields
+
+Two more optional fields on the chat `connect` payload:
+
+```jsonc
+{ "type": "connect", "payload": { ..., "kind": "chat",
+    "profile": "personal",   // optional; overrides CLRC_PROFILE for this session
+    "style": "clrc-brief"    // optional; overrides CLRC_OUTPUT_STYLE
+} }
+```
+
+An unknown or invalid profile falls back to the agent default and the client receives a non-fatal `error` event; an invalid style is ignored. Old agents ignore both fields. The iOS app sends `style` from Settings → Chat → Display (`chat` → `clrc-chat`, `brief` → `clrc-brief`) and `profile` from the optional profile field (validated with the same pattern; empty = agent default).
+
+### 13.3 The `report` event
+
+The agent strips the style's header line (`**…**`, the first non-empty line of the turn's first text) and every well-formed ```` ```clrc-report ```` block from assistant text, and publishes one `report` event right before each `turn_end` of a turn that produced content:
+
+```jsonc
+{"kind":"report", "seq":9, "ts":"...", "truncated":false, "report":{
+  "v":1, "status":"needs_input", "title":"...", "summary":"...",
+  "questions":["..."], "next_steps":["..."], "changed_files":["internal/x.go"],
+  "header":"tergeo · personal", "context_ok":true, "source":"block"}}
+```
+
+- `status`: `done` | `needs_input` | `failed` | `in_progress`; an unknown value from the model becomes `done`.
+- `title` ≤ 60 runes, `summary` ≤ 200 runes (cut at a word with `…`), lists ≤ 10 items of ≤ 200 runes; `truncated` is set when anything was cut. Lists are always `[]`, never `null`.
+- `changed_files`: from the block; if the block has none, the paths of this turn's `Edit`/`Write`/`MultiEdit` calls, relative to the session cwd.
+- `header`: the header without `**`, empty when absent. `context_ok`: header present and, if `CLRC_EXPECTED_HEADER_PREFIX` is set, starting with it.
+- `source`: `block` when parsed from the model's block; `fallback` when the block was missing or malformed. The fallback derives the title from the first meaningful line, the summary from the last text, `needs_input` (with question lines) when the text ends with `?`, `in_progress` for an interrupted turn and `failed` for an error result. A malformed block stays visible in the text.
+
+Clients ignore unknown fields; ClrcCore maps an unknown status to `.unknown` and a report it cannot decode leaves the rest of the event intact. The iOS app renders assistant text as inline markdown, shows the report as a card (at the end of the turn in `chat` mode, first with the text folded under "Details" in `brief` mode; tapping a question puts its number into the composer) and shows the latest report's `header`/`context_ok` as a badge above the transcript.

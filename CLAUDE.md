@@ -84,6 +84,12 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
   (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
   in `sessions_list`. All fields are optional — old clients/agents interoperate.
 
+### Structured output (chat mode)
+
+- Chat replies use a Claude Code output style (`clrc-chat` / `clrc-brief`, kept in the user's Claude config) and end with a ```` ```clrc-report ```` JSON block. `agent/turn_tracker.go` + `agent/turn_report.go` strip the `**header**` line and the block from the text and emit a `report` event (`v, status, title, summary, questions, next_steps, changed_files, header, context_ok, source`) right before `turn_end`, with a fallback report when the block is missing.
+- Agent env: `CLRC_PROFILE` (→ `CLAUDE_CONFIG_DIR=~/.claude-<profile>`), `CLRC_CLAUDE_CONFIG_DIR` (explicit dir, wins), `CLRC_OUTPUT_STYLE` (default `clrc-chat`, empty = none), `CLRC_EXPECTED_HEADER_PREFIX` (gates `context_ok`). Every spawned process gets `CLRC_SESSION=1`.
+- Chat `connect` takes optional `profile` and `style` overriding those defaults per session. Full contract: section 13 of `docs/superpowers/specs/2026-08-15-chat-mode-design.md`.
+
 ### Relay routing (`relay/hub.go`)
 
 - The `Hub` runs a single goroutine (`Run()`) that owns register/unregister via channels; all map access is guarded by `Hub.mu`. Connection writes go through per-conn mutexes (`AgentConn.Send`, `ClientConn.Send`).
