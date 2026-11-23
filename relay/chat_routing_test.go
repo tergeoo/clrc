@@ -125,6 +125,12 @@ func tryReadUntil(t *testing.T, conn *websocket.Conn, want string, timeout time.
 // connectPair wires up an agent and a client sharing one session.
 func connectPair(t *testing.T) (agent, client *websocket.Conn) {
 	t.Helper()
+	return connectPairWith(t, nil)
+}
+
+// connectPairWith is connectPair with extra connect payload fields.
+func connectPairWith(t *testing.T, extra map[string]any) (agent, client *websocket.Conn) {
+	t.Helper()
 	_, auth, base := newTestRelay(t)
 
 	agent = dial(t, base+"/ws/agent")
@@ -141,10 +147,14 @@ func connectPair(t *testing.T) (agent, client *websocket.Conn) {
 
 	time.Sleep(100 * time.Millisecond) // let registration settle
 
-	writeMsg(t, client, "connect", map[string]any{
+	payload := map[string]any{
 		"agent_id": testAgentID, "session_id": testSessionID,
 		"kind": "chat", "cwd": "~/proj",
-	})
+	}
+	for k, v := range extra {
+		payload[k] = v
+	}
+	writeMsg(t, client, "connect", payload)
 	readUntil(t, client, "session_ready")
 	return agent, client
 }
@@ -324,5 +334,47 @@ func TestChatHistoryRejectsEmptyRequestID(t *testing.T) {
 
 	if _, ok := tryReadUntil(t, agent, "chat_history", 500*time.Millisecond); ok {
 		t.Fatal("chat_history with an empty request_id must not be forwarded to the agent")
+	}
+}
+
+func TestConnectForwardsProfileAndStyleVerbatim(t *testing.T) {
+	agent, _ := connectPairWith(t, map[string]any{"profile": "personal", "style": "clrc-brief"})
+
+	msg := readUntil(t, agent, "connect")
+	var payload map[string]any
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal forwarded connect: %v", err)
+	}
+	if payload["profile"] != "personal" || payload["style"] != "clrc-brief" {
+		t.Fatalf("profile/style lost in relay: %+v", payload)
+	}
+}
+
+func TestReportEventRoutesAgentToClientVerbatim(t *testing.T) {
+	agent, client := connectPair(t)
+	readUntil(t, agent, "connect")
+
+	report := map[string]any{
+		"v": 1, "status": "needs_input", "title": "Need a value", "summary": "s",
+		"questions": []any{"How many days?"}, "next_steps": []any{}, "changed_files": []any{"a.go"},
+		"header": "tergeo · personal", "context_ok": true, "source": "block",
+	}
+	writeMsg(t, agent, "chat_event", map[string]any{
+		"session_id": testSessionID,
+		"event":      map[string]any{"kind": "report", "seq": 7, "report": report},
+	})
+
+	msg := readUntil(t, client, "chat_event")
+	var payload struct {
+		Event struct {
+			Kind   string         `json:"kind"`
+			Report map[string]any `json:"report"`
+		} `json:"event"`
+	}
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if payload.Event.Kind != "report" || payload.Event.Report["status"] != "needs_input" || payload.Event.Report["context_ok"] != true {
+		t.Fatalf("report event altered in relay: %+v", payload.Event)
 	}
 }
