@@ -11,6 +11,8 @@ public enum ChatEventKind: String, Codable, Sendable {
     case toolResult = "tool_result"
     case turnEnd = "turn_end"
     case error
+    /// Structured turn summary; carries `ChatEvent.report`.
+    case report
     case unknown
 
     public init(from decoder: Decoder) throws {
@@ -39,11 +41,13 @@ public struct ChatEvent: Codable, Sendable, Identifiable, Equatable {
     public let durationMS: Int
     public let stopReason: String
     public let message: String
+    /// Set only on `.report` events.
+    public let report: TurnReport?
 
     public var id: UInt64 { seq }
 
     enum CodingKeys: String, CodingKey {
-        case kind, seq, ts, text, name, input, output, ok, truncated, message
+        case kind, seq, ts, text, name, input, output, ok, truncated, message, report
         case toolID = "tool_id"
         case numTurns = "num_turns"
         case costUSD = "cost_usd"
@@ -56,7 +60,8 @@ public struct ChatEvent: Codable, Sendable, Identifiable, Equatable {
         text: String = "", toolID: String = "", name: String = "",
         input: String = "", output: String = "", ok: Bool? = nil,
         truncated: Bool = false, numTurns: Int = 0, costUSD: Double = 0,
-        durationMS: Int = 0, stopReason: String = "", message: String = ""
+        durationMS: Int = 0, stopReason: String = "", message: String = "",
+        report: TurnReport? = nil
     ) {
         self.kind = kind
         self.seq = seq
@@ -73,6 +78,7 @@ public struct ChatEvent: Codable, Sendable, Identifiable, Equatable {
         self.durationMS = durationMS
         self.stopReason = stopReason
         self.message = message
+        self.report = report
     }
 
     public init(from decoder: Decoder) throws {
@@ -92,5 +98,7 @@ public struct ChatEvent: Codable, Sendable, Identifiable, Equatable {
         durationMS = try c.decodeIfPresent(Int.self, forKey: .durationMS) ?? 0
         stopReason = try c.decodeIfPresent(String.self, forKey: .stopReason) ?? ""
         message = try c.decodeIfPresent(String.self, forKey: .message) ?? ""
+        // A report this app cannot read must not cost it the whole event.
+        report = try? c.decodeIfPresent(TurnReport.self, forKey: .report)
     }
 }

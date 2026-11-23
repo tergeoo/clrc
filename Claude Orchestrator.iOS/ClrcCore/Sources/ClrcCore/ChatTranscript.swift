@@ -10,6 +10,12 @@ public struct ChatTurn: Sendable, Identifiable, Equatable {
         self.events = events
     }
 
+    /// The turn's structured report: the last `report` event in the turn,
+    /// if the agent sent one.
+    public var report: TurnReport? {
+        events.last(where: { $0.kind == .report && $0.report != nil })?.report
+    }
+
     fileprivate func appending(_ event: ChatEvent) -> ChatTurn {
         ChatTurn(id: id, events: events + [event])
     }
@@ -45,6 +51,12 @@ public struct ChatTranscript: Sendable, Equatable {
         }
 
         return ChatTranscript(turns: turns, lastSeq: lastSeq)
+    }
+
+    /// The most recent report across all turns, for session-level status
+    /// such as the context badge.
+    public var latestReport: TurnReport? {
+        turns.last(where: { $0.report != nil })?.report
     }
 
     /// True when `seq` is further ahead than the next expected event, meaning

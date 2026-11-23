@@ -27,7 +27,7 @@ public enum ChatStateDeriver {
     ///   composer exactly like a normal completion.
     /// - `error` replaces `lastError` with the event's message.
     /// - every other kind (`text`, `userText`, `toolUse`, `toolResult`,
-    ///   `unknown`) leaves both fields untouched.
+    ///   `report`, `unknown`) leaves both fields untouched.
     public static func deriving(_ events: [ChatEvent], from state: ChatSessionState) -> ChatSessionState {
         var isWorking = state.isWorking
         var lastError = state.lastError
@@ -41,7 +41,7 @@ public enum ChatStateDeriver {
                 isWorking = false
             case .error:
                 lastError = event.message
-            case .text, .userText, .toolUse, .toolResult, .unknown:
+            case .text, .userText, .toolUse, .toolResult, .report, .unknown:
                 break
             }
         }
