@@ -100,8 +100,10 @@ final class SessionManager: ObservableObject {
                               cols: action.cols, rows: action.rows, name: action.name)
         }
         for action in plan.chatReattaches {
+            let options = chatConnectOptions()
             relay.sendChatConnect(agentID: action.agentID, sessionID: action.sessionID,
-                                  cwd: action.cwd, name: action.name)
+                                  cwd: action.cwd, name: action.name,
+                                  style: options.style, profile: options.profile)
             if let session = chatSessions.first(where: { $0.id == action.sessionID }) {
                 startChatReplay(for: session)
             }
@@ -268,8 +270,20 @@ final class SessionManager: ObservableObject {
             }
         }
 
+        let options = chatConnectOptions()
         relay.sendChatConnect(agentID: agent.id, sessionID: session.id,
-                              cwd: cwd, name: name)
+                              cwd: cwd, name: name,
+                              style: options.style, profile: options.profile)
+    }
+
+    /// The output style for the selected display mode and the optional
+    /// Claude profile, both from Settings. The agent applies them only when
+    /// it spawns a session, so a reattach to a live session is unaffected.
+    private func chatConnectOptions() -> (style: String, profile: String?) {
+        let defaults = UserDefaults.standard
+        let style = ChatDisplayMode.stored(in: defaults).outputStyle
+        let profile = normalizedProfile(defaults.string(forKey: ChatDisplayMode.profileStorageKey) ?? "")
+        return (style, profile)
     }
 
     func closeChat(_ session: ChatSession) {

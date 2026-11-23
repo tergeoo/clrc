@@ -347,8 +347,11 @@ final class RelayWebSocket: NSObject, ObservableObject {
         sendJSON(["type": "list", "payload": [:] as [String: Any]])
     }
 
+    /// `style` and `profile` are optional: an agent without structured-output
+    /// support ignores them, and absent fields mean the agent's defaults.
     func sendChatConnect(agentID: String, sessionID: String, cwd: String,
-                         name: String? = nil, model: String? = nil) {
+                         name: String? = nil, model: String? = nil,
+                         style: String? = nil, profile: String? = nil) {
         var payload: [String: Any] = [
             "agent_id": agentID,
             "session_id": sessionID,
@@ -357,6 +360,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
         ]
         if let name, !name.isEmpty { payload["name"] = name }
         if let model, !model.isEmpty { payload["model"] = model }
+        if let style, !style.isEmpty { payload["style"] = style }
+        if let profile, !profile.isEmpty { payload["profile"] = profile }
         sendJSON(["type": "connect", "payload": payload])
     }
 

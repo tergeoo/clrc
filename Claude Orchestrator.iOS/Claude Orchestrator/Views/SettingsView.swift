@@ -1,4 +1,5 @@
 import SwiftUI
+import ClrcCore
 
 struct SettingsView: View {
     @EnvironmentObject var authService: AuthService
@@ -7,7 +8,19 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("relay_server_url") private var relayURLString = "http://localhost:8080"
+    @AppStorage(ChatDisplayMode.storageKey) private var chatDisplayMode: ChatDisplayMode = .chat
+    @AppStorage(ChatDisplayMode.profileStorageKey) private var claudeProfile = ""
     @State private var showCloseAllConfirm = false
+
+    /// Explains the profile field, and flags a value the agent would reject.
+    private var profileFooter: String {
+        let trimmed = claudeProfile.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty, normalizedProfile(trimmed) == nil {
+            return "Use lowercase letters, digits and dashes. This value is ignored."
+        }
+        return "Applies to new chat sessions. Empty uses the Mac's default (CLRC_PROFILE). "
+            + "Brief shows the result card first."
+    }
 
     var body: some View {
         NavigationView {
@@ -33,6 +46,21 @@ struct SettingsView: View {
                             .font(.callout)
                         }
                     }
+                }
+
+                // MARK: - Chat
+                Section {
+                    Picker("Display", selection: $chatDisplayMode) {
+                        Text("Chat").tag(ChatDisplayMode.chat)
+                        Text("Brief").tag(ChatDisplayMode.brief)
+                    }
+                    TextField("Claude profile (optional)", text: $claudeProfile)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Chat")
+                } footer: {
+                    Text(profileFooter)
                 }
 
                 // MARK: - Sessions
