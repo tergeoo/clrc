@@ -16,6 +16,17 @@ type Config struct {
 	Secret         string
 	RelayURL       string
 	DefaultCommand string
+
+	// ClaudeConfigDir is the resolved CLAUDE_CONFIG_DIR for spawned claude
+	// processes (from CLRC_CLAUDE_CONFIG_DIR or CLRC_PROFILE). Empty means
+	// the CLI default.
+	ClaudeConfigDir string
+	// OutputStyle is passed as --settings {"outputStyle":...} to chat
+	// sessions. Empty means no --settings flag.
+	OutputStyle string
+	// ExpectedHeaderPrefix, when set, must prefix a turn's header line for
+	// the turn report's context_ok to be true.
+	ExpectedHeaderPrefix string
 }
 
 // agentIDFile returns the path to the persisted agent ID file.

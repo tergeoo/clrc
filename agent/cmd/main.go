@@ -355,12 +355,14 @@ func run() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatal(err)
 	}
+	applyClaudeSettings(&cfg, home)
 
 	log.Printf("Starting CLRC")
 	log.Printf("  Agent ID: %s", cfg.AgentID)
 	log.Printf("  Name:     %s", cfg.Name)
 	log.Printf("  Relay:    %s", cfg.RelayURL)
 	log.Printf("  Command:  %s", cfg.DefaultCommand)
+	log.Printf("  Claude config dir: %q, output style: %q", cfg.ClaudeConfigDir, cfg.OutputStyle)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
@@ -372,6 +374,24 @@ func run() {
 
 	agent.NewWSClient(cfg).Run(ctx)
 	log.Println("Agent stopped.")
+}
+
+// applyClaudeSettings fills the structured-output settings from the
+// environment. Problems are logged as warnings, never fatal: an unusable
+// profile or style falls back to the CLI's own defaults.
+func applyClaudeSettings(cfg *agent.Config, home string) {
+	dir, err := agent.ResolveClaudeConfigDir(home, os.Getenv("CLRC_PROFILE"), os.Getenv("CLRC_CLAUDE_CONFIG_DIR"))
+	if err != nil {
+		log.Printf("WARNING: %v; sessions will use the default Claude config dir", err)
+	}
+	cfg.ClaudeConfigDir = dir
+
+	style, err := agent.OutputStyleFromEnv(os.LookupEnv)
+	if err != nil {
+		log.Printf("WARNING: %v; using %q", err, style)
+	}
+	cfg.OutputStyle = style
+	cfg.ExpectedHeaderPrefix = os.Getenv("CLRC_EXPECTED_HEADER_PREFIX")
 }
 
 func main() {

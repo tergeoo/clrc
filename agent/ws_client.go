@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -27,6 +29,11 @@ type connectReq struct {
 	Kind      string `json:"kind"`
 	Cwd       string `json:"cwd"`
 	Model     string `json:"model"`
+	// Profile optionally selects ~/.claude-<profile> as CLAUDE_CONFIG_DIR
+	// for this session instead of the agent default.
+	Profile string `json:"profile"`
+	// Style optionally overrides the agent's output style (chat only).
+	Style string `json:"style"`
 }
 
 // isPTY reports whether this connect asks for a terminal session. Anything
@@ -300,7 +307,12 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		command = "bash"
 	}
 
-	sess, err := NewPTYSession(req.SessionID, command, req.Cols, req.Rows, c.sendToRelay)
+	configDir, err := c.sessionConfigDir(req.Profile)
+	if err != nil {
+		log.Printf("PTY session %s: %v; using the agent default", req.SessionID, err)
+	}
+
+	sess, err := NewPTYSession(req.SessionID, command, req.Cols, req.Rows, configDir, c.sendToRelay)
 	if err != nil {
 		log.Printf("Failed to start PTY for session %s: %v", req.SessionID, err)
 		return
@@ -347,19 +359,64 @@ func (c *WSClient) handleChatConnect(req connectReq) {
 		return
 	}
 
-	sess := NewChatSession(req.SessionID, resolvedCwd, req.Model, c.sendChatEvents)
+	opts := c.chatOptions(req)
+	sess := NewChatSessionWithOptions(req.SessionID, resolvedCwd, opts, c.sendChatEvents)
 
 	c.mu.Lock()
 	c.chats[req.SessionID] = sess
 	c.mu.Unlock()
 
-	log.Printf("Chat session started: %s (cwd: %s)", req.SessionID, resolvedCwd)
+	log.Printf("Chat session started: %s (cwd: %s, style: %q, config dir: %q)",
+		req.SessionID, resolvedCwd, opts.Style, opts.ConfigDir)
 
 	go func() {
 		<-sess.Done()
 		c.removeChatIfCurrent(req.SessionID, sess)
 		log.Printf("Chat session ended: %s", req.SessionID)
 	}()
+}
+
+// sessionConfigDir resolves a connect's optional profile to a config dir.
+// No profile means the agent default; an invalid or missing profile also
+// falls back to it, with the reason returned for the caller to surface.
+func (c *WSClient) sessionConfigDir(profile string) (string, error) {
+	if profile == "" {
+		return c.cfg.ClaudeConfigDir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return c.cfg.ClaudeConfigDir, fmt.Errorf("resolve home for profile %q: %w", profile, err)
+	}
+	dir, err := ResolveClaudeConfigDir(home, profile, "")
+	if err != nil {
+		return c.cfg.ClaudeConfigDir, err
+	}
+	return dir, nil
+}
+
+// chatOptions derives a chat session's spawn options from the connect
+// request and the agent config. A rejected profile or style falls back to
+// the agent default and is reported to the client as a non-fatal error.
+func (c *WSClient) chatOptions(req connectReq) ChatOptions {
+	configDir, err := c.sessionConfigDir(req.Profile)
+	if err != nil {
+		log.Printf("Chat session %s: %v; using the agent default", req.SessionID, err)
+		c.sendChatError(req.SessionID, "profile is not available on this Mac; using the default")
+	}
+	style := c.cfg.OutputStyle
+	if req.Style != "" {
+		if validIdent(req.Style) {
+			style = req.Style
+		} else {
+			log.Printf("Chat session %s: ignoring invalid style %q", req.SessionID, req.Style)
+		}
+	}
+	return ChatOptions{
+		Model:        req.Model,
+		Style:        style,
+		ConfigDir:    configDir,
+		HeaderPrefix: c.cfg.ExpectedHeaderPrefix,
+	}
 }
 
 // removeChatIfCurrent deletes the chats[id] entry only if it still points at

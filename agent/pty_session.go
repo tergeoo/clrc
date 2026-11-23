@@ -25,34 +25,12 @@ type PTYSession struct {
 	sendFn func(sessionID string, data []byte) // nil = detached
 }
 
-// cleanEnv returns os.Environ() with Claude Code session variables stripped
-// so that a nested `claude` invocation is not rejected.
-func cleanEnv() []string {
-	// Variables Claude Code sets to detect nested sessions.
-	blocked := []string{
-		"CLAUDE_",    // CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_SESSION_ID, etc.
-		"CLAUDECODE", // CLAUDECODE=1
-	}
-	var env []string
-	for _, kv := range os.Environ() {
-		skip := false
-		for _, prefix := range blocked {
-			if len(kv) >= len(prefix) && kv[:len(prefix)] == prefix {
-				skip = true
-				break
-			}
-		}
-		if !skip {
-			env = append(env, kv)
-		}
-	}
-	return env
-}
-
 // NewPTYSession spawns a new PTY process and starts reading its output.
-func NewPTYSession(id string, command string, cols, rows uint16, sendFn func(string, []byte)) (*PTYSession, error) {
+// configDir, when non-empty, becomes the child's CLAUDE_CONFIG_DIR; see
+// buildChildEnv for the rest of the environment it gets.
+func NewPTYSession(id string, command string, cols, rows uint16, configDir string, sendFn func(string, []byte)) (*PTYSession, error) {
 	cmd := exec.Command(command)
-	cmd.Env = cleanEnv()
+	cmd.Env = childEnv(configDir)
 
 	ptm, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: rows, Cols: cols})
 	if err != nil {

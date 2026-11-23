@@ -32,6 +32,12 @@ type ChatSession struct {
 	Model string
 	Bin   string // overridden in tests
 
+	// Style is the output style passed as --settings on every spawn,
+	// including respawn with --resume. Empty means no --settings flag.
+	Style string
+	// ConfigDir becomes CLAUDE_CONFIG_DIR for the child. Empty = CLI default.
+	ConfigDir string
+
 	emit func(sessionID string, events []ChatEvent)
 	buf  *ChatBuffer
 
@@ -84,15 +90,29 @@ type ChatSession struct {
 	doneOnce sync.Once
 }
 
+// ChatOptions are the per-session spawn settings beyond id and cwd.
+type ChatOptions struct {
+	Model        string
+	Style        string
+	ConfigDir    string
+	HeaderPrefix string
+}
+
 func NewChatSession(id, cwd, model string, emit func(string, []ChatEvent)) *ChatSession {
+	return NewChatSessionWithOptions(id, cwd, ChatOptions{Model: model}, emit)
+}
+
+func NewChatSessionWithOptions(id, cwd string, opts ChatOptions, emit func(string, []ChatEvent)) *ChatSession {
 	return &ChatSession{
-		ID:     id,
-		Cwd:    cwd,
-		Model:  model,
-		Bin:    "claude",
-		emit:   emit,
-		buf:    NewChatBuffer(defaultChatBufferSize),
-		doneCh: make(chan struct{}),
+		ID:        id,
+		Cwd:       cwd,
+		Model:     opts.Model,
+		Style:     opts.Style,
+		ConfigDir: opts.ConfigDir,
+		Bin:       "claude",
+		emit:      emit,
+		buf:       NewChatBuffer(defaultChatBufferSize),
+		doneCh:    make(chan struct{}),
 	}
 }
 
@@ -134,7 +154,16 @@ func (s *ChatSession) args() []string {
 	if s.Model != "" {
 		a = append(a, "--model", s.Model)
 	}
+	if s.Style != "" {
+		a = append(a, "--settings", styleSettings(s.Style))
+	}
 	return a
+}
+
+// styleSettings renders the --settings JSON that selects an output style.
+func styleSettings(style string) string {
+	b, _ := json.Marshal(map[string]string{"outputStyle": style})
+	return string(b)
 }
 
 // ensureProcess starts the process if it is not running. Caller holds s.mu.
@@ -144,7 +173,7 @@ func (s *ChatSession) ensureProcess() error {
 	}
 	cmd := exec.Command(s.Bin, s.args()...)
 	cmd.Dir = s.Cwd
-	cmd.Env = cleanEnv()
+	cmd.Env = childEnv(s.ConfigDir)
 	// Its own process group so Interrupt/Close can signal the whole tree
 	// (e.g. a running Bash tool call), not just the immediate child.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
