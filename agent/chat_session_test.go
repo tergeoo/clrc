@@ -74,9 +74,9 @@ func TestChatSessionSendProducesNormalisedTurn(t *testing.T) {
 	for _, e := range evs {
 		kinds = append(kinds, e.Kind)
 	}
-	want := []ChatEventKind{EventUserText, EventTurnStart, EventText, EventTurnEnd}
+	want := []ChatEventKind{EventUserText, EventTurnStart, EventText, EventReport, EventTurnEnd}
 	if len(kinds) != len(want) {
-		t.Fatalf("kinds = %v, want %v (noise must be filtered)", kinds, want)
+		t.Fatalf("kinds = %v, want %v (noise must be filtered, report precedes turn_end)", kinds, want)
 	}
 	for i := range want {
 		if kinds[i] != want[i] {

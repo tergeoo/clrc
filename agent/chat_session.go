@@ -41,6 +41,11 @@ type ChatSession struct {
 	emit func(sessionID string, events []ChatEvent)
 	buf  *ChatBuffer
 
+	// pubMu makes "rewrite through turns, then stamp seq" one step, so two
+	// publishing goroutines cannot interleave a report and its turn_end.
+	pubMu sync.Mutex
+	turns *turnTracker
+
 	mu    sync.Mutex
 	cmd   *exec.Cmd
 	stdin io.WriteCloser
@@ -112,16 +117,24 @@ func NewChatSessionWithOptions(id, cwd string, opts ChatOptions, emit func(strin
 		Bin:       "claude",
 		emit:      emit,
 		buf:       NewChatBuffer(defaultChatBufferSize),
+		turns:     newTurnTracker(cwd, opts.HeaderPrefix),
 		doneCh:    make(chan struct{}),
 	}
 }
 
-// publish stamps events with seq and forwards them to the client.
+// publish rewrites events through the turn tracker (header and report
+// extraction), stamps them with seq and forwards them to the client.
 func (s *ChatSession) publish(events ...ChatEvent) {
-	if len(events) == 0 {
+	s.pubMu.Lock()
+	events = s.turns.process(events)
+	var stamped []ChatEvent
+	if len(events) > 0 {
+		stamped = s.buf.Append(events...)
+	}
+	s.pubMu.Unlock()
+	if len(stamped) == 0 {
 		return
 	}
-	stamped := s.buf.Append(events...)
 	if s.emit != nil {
 		s.emit(s.ID, stamped)
 	}

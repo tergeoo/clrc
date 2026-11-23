@@ -22,6 +22,10 @@ const (
 	EventTurnEnd    ChatEventKind = "turn_end"
 	EventError      ChatEventKind = "error"
 	EventUserText   ChatEventKind = "user_text"
+	// EventReport carries the structured TurnReport for a finished turn. It
+	// is produced by turnTracker (never by TranslateLine) right before the
+	// turn's turn_end.
+	EventReport ChatEventKind = "report"
 )
 
 // ChatEvent is one normalised event. Seq is stamped by ChatBuffer.Append,
@@ -46,6 +50,8 @@ type ChatEvent struct {
 	StopReason string  `json:"stop_reason,omitempty"`
 
 	Message string `json:"message,omitempty"`
+
+	Report *TurnReport `json:"report,omitempty"`
 }
 
 // rawLine is the subset of the Claude Code stream-json envelope we read.
