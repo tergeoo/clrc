@@ -4,15 +4,20 @@ import ClrcCore
 struct ChatSessionView: View {
     @ObservedObject var session: ChatSession
     @EnvironmentObject var relay: RelayWebSocket
+    @AppStorage(ChatDisplayMode.storageKey) private var displayMode: ChatDisplayMode = .chat
     @State private var draft = ""
 
     var body: some View {
         VStack(spacing: 0) {
+            sessionToolbar
+
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(session.transcript.turns) { turn in
-                            ChatTurnView(turn: turn)
+                            ChatTurnView(turn: turn, mode: displayMode) { answer in
+                                draft = answer
+                            }
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
@@ -44,10 +49,28 @@ struct ChatSessionView: View {
             )
         }
     }
+
+    /// Session-level status: the context badge from the latest report.
+    @ViewBuilder
+    private var sessionToolbar: some View {
+        if let report = session.transcript.latestReport {
+            HStack {
+                ContextBadge(report: report)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+            .background(.bar)
+        }
+    }
 }
 
 struct ChatTurnView: View {
     let turn: ChatTurn
+    let mode: ChatDisplayMode
+    /// Puts a question's answer into the composer.
+    let onAnswer: (String) -> Void
+    @State private var showDetails = false
 
     /// `tool_use`/`tool_result` are emitted as separate events but paired by
     /// `tool_id` on the agent (see agent/chat_events.go) — look the result up
@@ -60,37 +83,70 @@ struct ChatTurnView: View {
         )
     }
 
+    /// The user's own messages stay visible in every mode. They arrive just
+    /// before the next turn's `turn_start`, so they sit at the end of this one.
+    private var userEvents: [ChatEvent] { turn.events.filter { $0.kind == .userText } }
+    private var otherEvents: [ChatEvent] { turn.events.filter { $0.kind != .userText } }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(turn.events) { event in
-                switch event.kind {
-                case .text:
-                    Text(event.text)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                case .userText:
-                    UserTextBubble(text: event.text)
-
-                case .toolUse:
-                    ToolCallRow(event: event, result: toolResultsByID[event.toolID])
-
-                case .error:
-                    Label(event.message, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-
-                case .turnEnd:
-                    if event.costUSD > 0 {
-                        Text(String(format: "%.3f $ · %d ms", event.costUSD, event.durationMS))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-
-                case .turnStart, .toolResult, .unknown:
-                    EmptyView()
+            if mode == .brief, let report = turn.report {
+                ReportCard(report: report, onAnswer: onAnswer)
+                DisclosureGroup("Details", isExpanded: $showDetails) {
+                    eventList(otherEvents)
                 }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                eventList(otherEvents)
             }
+            ForEach(userEvents) { event in
+                UserTextBubble(text: event.text)
+            }
+        }
+    }
+
+    private func eventList(_ events: [ChatEvent]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(events) { event in
+                eventRow(event)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func eventRow(_ event: ChatEvent) -> some View {
+        switch event.kind {
+        case .text:
+            Text(inlineMarkdown(event.text))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .userText:
+            UserTextBubble(text: event.text)
+
+        case .toolUse:
+            ToolCallRow(event: event, result: toolResultsByID[event.toolID])
+
+        case .error:
+            Label(event.message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.red)
+
+        case .report:
+            if mode == .chat, let report = event.report {
+                ReportCard(report: report, onAnswer: onAnswer)
+            }
+
+        case .turnEnd:
+            if event.costUSD > 0 {
+                Text(String(format: "%.3f $ · %d ms", event.costUSD, event.durationMS))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .turnStart, .toolResult, .unknown:
+            EmptyView()
         }
     }
 }
