@@ -35,7 +35,7 @@ struct OnboardingView: View {
 
     @EnvironmentObject var authService: AuthService
     @EnvironmentObject var relay: RelayWebSocket
-    @AppStorage("relay_server_url") private var serverURL = ""
+    @AppStorage(RelayAddress.storageKey) private var serverURL = ""
 
     @State private var step: Step
     @State private var password = ""

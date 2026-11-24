@@ -42,3 +42,25 @@ import Foundation
     #expect(RelayURL.normalize("") == nil)
     #expect(RelayURL.normalize("http://") == nil)
 }
+
+// Review fix: «Перезапустить» must not replay a task, and never skips permissions silently.
+@Test func restartCommandForALaunchHasNoPromptAndNoFlag() {
+    let request = NewTaskPlanner.request(agentID: "a", cwd: "~/dev/api", mode: .terminal, prompt: "удали миграции",
+                                         customName: "", model: "", profile: "", skipPermissions: true)
+    #expect(NewTaskPlanner.restartCommand(for: request) == "cd ~/'dev/api' && claude")
+}
+
+@Test func storedDangerousCommandRestartsPlainClaude() {
+    let entry = PersistedSession(id: "d", agentID: "m", agentName: "mac", customName: "api ⚠", projectPath: "/u/api",
+                                 command: "cd '/u/api' && claude --dangerously-skip-permissions 'удали миграции'")
+    #expect(entry.restartCommand == "cd '/u/api' && claude")
+}
+
+@Test func dangerousLaunchKeepsTheWarningInItsName() {
+    let request = NewTaskPlanner.request(agentID: "a", cwd: "/u/api", mode: .terminal, prompt: "", customName: "",
+                                         model: "", profile: "", skipPermissions: true)
+    #expect(request.name == "api ⚠")
+    let custom = NewTaskPlanner.request(agentID: "a", cwd: "/u/api", mode: .terminal, prompt: "", customName: "fix",
+                                        model: "", profile: "", skipPermissions: true)
+    #expect(custom.name == "fix ⚠")
+}

@@ -9,7 +9,9 @@ struct SettingsScreen: View {
     @EnvironmentObject var relay: RelayWebSocket
     @EnvironmentObject var sessionManager: SessionManager
 
-    @AppStorage("relay_server_url") private var relayURLString = "http://localhost:8080"
+    @AppStorage(RelayAddress.storageKey) private var relayURLString = RelayAddress.fallback
+    /// The field's text; written to `relayURLString` only once it is valid.
+    @State private var urlDraft = ""
     @AppStorage(ChatDisplayMode.storageKey) private var displayMode: ChatDisplayMode = .chat
     @AppStorage(SessionLaunchMode.terminalStorageKey) private var claudeInTerminal = false
     @AppStorage(ChatDisplayMode.profileStorageKey) private var profile = ""
@@ -34,6 +36,7 @@ struct SettingsScreen: View {
                 dangerZone
             }
             .navigationTitle("Настройки")
+            .onAppear { urlDraft = relayURLString }
             .sheet(isPresented: $showConnectMac) { ConnectMacSheet() }
             .confirmationDialog("Закрыть все сессии (\(openSessions))?", isPresented: $confirmCloseAll, titleVisibility: .visible) {
                 Button("Закрыть все", role: .destructive) { sessionManager.closeEverything() }
@@ -41,7 +44,12 @@ struct SettingsScreen: View {
                 Text("Процессы на Маках будут остановлены.")
             }
             .confirmationDialog("Выйти?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                Button("Выйти", role: .destructive) { authService.logout() }
+                Button("Выйти", role: .destructive) {
+                    // Drop the socket too: the relay then detaches, so the
+                    // PTYs keep running and reattach after the next sign-in.
+                    relay.disconnect()
+                    authService.logout()
+                }
             } message: {
                 Text("Сессии на Маке продолжат работать — их можно будет открыть после входа.")
             }
@@ -53,7 +61,7 @@ struct SettingsScreen: View {
     private var connection: some View {
         Section {
             VStack(alignment: .leading, spacing: 4) {
-                TextField("Relay URL", text: $relayURLString)
+                TextField("Relay URL", text: $urlDraft)
                     .font(.system(size: 15, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -204,11 +212,12 @@ struct SettingsScreen: View {
     }
 
     private func applyURL() {
-        guard let url = RelayURL.normalize(relayURLString) else {
+        guard let url = RelayURL.normalize(urlDraft) else {
             urlError = "Проверьте адрес: например, http://192.168.1.5:8080"
             return
         }
         urlError = nil
+        urlDraft = url.absoluteString
         relayURLString = url.absoluteString
         authService.updateRelayURL(url)
         relay.updateRelayURL(url)

@@ -9,11 +9,7 @@ struct ClaudeTerminalApp: App {
     @StateObject private var sessionManager: SessionManager
 
     init() {
-        // Load saved relay URL, fall back to Info.plist key, then localhost
-        let savedURL = UserDefaults.standard.string(forKey: "relay_server_url")
-        let plistURL = Bundle.main.object(forInfoDictionaryKey: "RELAY_URL") as? String
-        let urlStr = savedURL ?? plistURL ?? "http://localhost:8080"
-        let url = URL(string: urlStr) ?? URL(string: "http://localhost:8080")!
+        let url = RelayAddress.startURL()
 
         let auth = AuthService(relayURL: url)
         let ws = RelayWebSocket(relayURL: url, authService: auth)

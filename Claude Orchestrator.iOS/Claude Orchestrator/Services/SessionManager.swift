@@ -233,7 +233,9 @@ final class SessionManager: ObservableObject {
 
     // MARK: - Create / attach
 
-    func createSession(for agent: Agent, initialCommand: String? = nil) {
+    /// `restartCommand` is what «Перезапустить» will run later; by default
+    /// the start command itself.
+    func createSession(for agent: Agent, initialCommand: String? = nil, restartCommand: String? = nil) {
         sessionCounter += 1
         let name = SessionNaming.autoName(for: initialCommand, index: sessionCounter)
         let session = TerminalSession(agent: agent, customName: name, initialCommand: initialCommand)
@@ -246,7 +248,7 @@ final class SessionManager: ObservableObject {
             agentName: agent.name,
             customName: name,
             projectPath: projectPath,
-            command: initialCommand
+            command: restartCommand ?? initialCommand
         ))
         if let projectPath {
             store.addRecentProject(projectPath, agentID: agent.id)
@@ -265,8 +267,11 @@ final class SessionManager: ObservableObject {
         remember(request.mode)
 
         guard let display = request.mode.displayMode else {
-            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(
-                cwd: request.cwd, prompt: request.prompt, skipPermissions: request.skipPermissions))
+            createSession(for: agent,
+                          initialCommand: SessionLaunchMode.terminalCommand(
+                              cwd: request.cwd, prompt: request.prompt, skipPermissions: request.skipPermissions),
+                          // Restart never replays the task or skips permissions again.
+                          restartCommand: NewTaskPlanner.restartCommand(for: request))
             guard let created = sessions.last else { return nil }
             rename(created, to: request.name)
             return .terminal(id: created.id)

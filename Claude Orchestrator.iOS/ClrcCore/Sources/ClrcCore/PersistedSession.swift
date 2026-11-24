@@ -27,7 +27,9 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
     /// What «Перезапустить» runs: the stored command; for older entries,
     /// Claude in their project folder (the previous behaviour).
     public var restartCommand: String? {
-        if let command, !command.isEmpty { return command }
+        // A stored dangerous launch restarts as plain Claude: skipping
+        // permissions always needs a fresh confirmation (brief §2 п.6).
+        if let command, !command.isEmpty, !command.contains(SessionLaunchMode.skipPermissionsFlag) { return command }
         return projectPath.map { SessionLaunchMode.terminalCommand(cwd: $0) }
     }
 

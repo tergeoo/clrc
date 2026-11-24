@@ -34,11 +34,22 @@ public enum NewTaskPlanner {
                                customName: String, model: String, profile: String,
                                skipPermissions: Bool = false) -> LaunchRequest {
         let folder = (cwd == "~" || cwd?.isEmpty == true) ? nil : cwd
-        let name = nonEmpty(customName) ?? folder.map { ($0 as NSString).lastPathComponent } ?? fallbackName
+        let skip = skipPermissions && mode == .terminal
+        let baseName = nonEmpty(customName) ?? folder.map { ($0 as NSString).lastPathComponent } ?? fallbackName
+        // A dangerous session stays marked wherever its name is shown.
+        let name = skip && !baseName.hasSuffix(dangerMarker) ? baseName + " " + dangerMarker : baseName
         return LaunchRequest(agentID: agentID, cwd: folder, mode: mode, prompt: nonEmpty(prompt),
                              name: name, model: nonEmpty(model), profile: normalizedProfile(profile),
                              // Chat sessions already run with bypassPermissions on the agent.
-                             skipPermissions: skipPermissions && mode == .terminal)
+                             skipPermissions: skip)
+    }
+
+    static let dangerMarker = "⚠"
+
+    /// What «Перезапустить» runs for a terminal launch: Claude in the same
+    /// folder — never the original task again, never without permissions.
+    public static func restartCommand(for request: LaunchRequest) -> String {
+        SessionLaunchMode.terminalCommand(cwd: request.cwd, prompt: nil, skipPermissions: false)
     }
 
     /// Tapping a recent project launches at once only when no task was typed.
