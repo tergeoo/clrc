@@ -112,3 +112,39 @@ func TestChatSessionSpawnEnvAndStyleSurviveRespawn(t *testing.T) {
 		}
 	}
 }
+
+// After an agent restart a chat whose conversation already exists on disk
+// must resume it: --session-id for an existing id fails with "already in use".
+func TestChatSessionResumesExistingTranscript(t *testing.T) {
+	const id = "274c4653-d5e7-40b5-94a3-97d78ce2ecb8"
+	configDir := t.TempDir()
+	project := filepath.Join(configDir, "projects", "-Users-me-repo")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, id+".jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	existing := NewChatSessionWithOptions(id, "/Users/me/repo", ChatOptions{ConfigDir: configDir}, nil)
+	if args := strings.Join(existing.args(), " "); !strings.Contains(args, "--resume "+id) {
+		t.Errorf("existing transcript: args = %s", args)
+	}
+	fresh := NewChatSessionWithOptions("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "/Users/me/repo", ChatOptions{ConfigDir: configDir}, nil)
+	if args := strings.Join(fresh.args(), " "); !strings.Contains(args, "--session-id ") {
+		t.Errorf("new chat: args = %s", args)
+	}
+}
+
+func TestChatSessionResumeUsesDefaultConfigDir(t *testing.T) {
+	const id = "11111111-2222-4333-8444-555555555555"
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	project := filepath.Join(home, ".claude", "projects", "-x")
+	os.MkdirAll(project, 0o755)
+	os.WriteFile(filepath.Join(project, id+".jsonl"), []byte("{}\n"), 0o600)
+	s := NewChatSessionWithOptions(id, "/x", ChatOptions{}, nil)
+	if args := strings.Join(s.args(), " "); !strings.Contains(args, "--resume "+id) {
+		t.Errorf("default config dir: args = %s", args)
+	}
+}

@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"sync"
 	"syscall"
 	"time"
@@ -119,8 +122,32 @@ func NewChatSessionWithOptions(id, cwd string, opts ChatOptions, emit func(strin
 		buf:       NewChatBuffer(defaultChatBufferSize),
 		turns:     newTurnTracker(cwd, opts.HeaderPrefix),
 		doneCh:    make(chan struct{}),
+		// A conversation the CLI already wrote (an earlier agent process
+		// created it before a restart or reboot) must be resumed:
+		// --session-id for an existing id fails with "already in use".
+		started: transcriptExists(id, opts.ConfigDir),
 	}
 }
+
+// transcriptExists reports whether the Claude CLI has a transcript for id
+// under <config dir>/projects/<project>/<id>.jsonl (config dir: the
+// session's CLAUDE_CONFIG_DIR, else ~/.claude).
+func transcriptExists(id, configDir string) bool {
+	if !uuidPattern.MatchString(id) {
+		return false
+	}
+	if configDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		configDir = filepath.Join(home, ".claude")
+	}
+	matches, err := filepath.Glob(filepath.Join(configDir, "projects", "*", id+".jsonl"))
+	return err == nil && len(matches) > 0
+}
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // publish rewrites events through the turn tracker (header and report
 // extraction), stamps them with seq and forwards them to the client.
