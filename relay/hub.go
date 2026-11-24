@@ -61,6 +61,11 @@ type Hub struct {
 	registerClient   chan *ClientConn
 	unregisterClient chan *ClientConn
 
+	// Report pushes: devices registered by clients, and the APNs sender
+	// (nil when push is not configured).
+	pushRegistry *PushRegistry
+	pushSender   PushSender
+
 	// request_id → ClientConn for any pending async response (sessions_list, fs_*)
 	pendingRequests sync.Map
 }
@@ -71,8 +76,22 @@ type Session struct {
 	Client *ClientConn
 }
 
+// SetPush enables report pushes through sender (nil disables them).
+func (h *Hub) SetPush(sender PushSender) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.pushSender = sender
+}
+
+func (h *Hub) push() PushSender {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.pushSender
+}
+
 func NewHub() *Hub {
 	return &Hub{
+		pushRegistry:     NewPushRegistry(),
 		agents:           make(map[string]*AgentConn),
 		clients:          make(map[*ClientConn]struct{}),
 		sessions:         make(map[string]*Session),
@@ -418,9 +437,18 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 			case "chat_event":
 				var pl struct {
 					SessionID string `json:"session_id"`
+					Event     struct {
+						Kind   string         `json:"kind"`
+						Report *reportPayload `json:"report"`
+					} `json:"event"`
 				}
 				json.Unmarshal(textMsg.Payload, &pl)
 				hub.RouteTextToClient(pl.SessionID, data)
+				// Pushes go out whether or not a client is attached — a
+				// backgrounded phone has no route, which is when it matters.
+				if sender := hub.push(); sender != nil && pl.Event.Kind == "report" && pl.Event.Report != nil {
+					pushReport(sender, hub.pushRegistry, agent.ID, pl.SessionID, *pl.Event.Report)
+				}
 			default:
 				log.Printf("Agent %s: %s", agent.ID, data)
 			}
@@ -596,6 +624,15 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 
 		case "git_status", "git_diff":
 			handleClientGitRequest(ctx, incoming, client, hub)
+
+		case "push_register":
+			var device PushDevice
+			if err := json.Unmarshal(incoming.Payload, &device); err != nil {
+				break
+			}
+			if err := hub.pushRegistry.Register(device); err != nil {
+				log.Printf("push_register rejected: %v", err)
+			}
 
 		case "chat_send", "chat_interrupt":
 			var pl struct {

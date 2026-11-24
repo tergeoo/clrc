@@ -33,6 +33,18 @@ func main() {
 
 	auth := relay.NewAuth(jwtSecret, adminPassword)
 
+	// Optional push: APNS_KEY_FILE, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC
+	// (+ APNS_SANDBOX=1). A broken key disables push, not the relay.
+	switch apns, err := relay.NewAPNsFromEnv(); {
+	case err != nil:
+		log.Printf("Push disabled: %v", err)
+	case apns == nil:
+		log.Printf("Push disabled: APNS_* not set")
+	default:
+		hub.SetPush(apns)
+		log.Printf("Push enabled")
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
