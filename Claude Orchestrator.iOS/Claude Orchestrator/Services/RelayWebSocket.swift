@@ -429,16 +429,22 @@ final class RelayWebSocket: NSObject, ObservableObject {
                   "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
     }
 
+    /// Completion gets the raw bytes: the agent may cut a file mid-character
+    /// at its 100 KB cap, so decoding is left to `FileText`.
     func sendFSRead(agentID: String, path: String, requestID: String,
-                    completion: @escaping (String?, String?) -> Void) {
+                    completion: @escaping (Data?, String?) -> Void) {
         pendingFSRequests[requestID] = { payload in
             let b64 = payload["content"] as? String
             let err = payload["error"] as? String
-            let decoded = b64.flatMap { Data(base64Encoded: $0) }.flatMap { String(data: $0, encoding: .utf8) }
-            completion(decoded, err?.isEmpty == false ? err : nil)
+            completion(b64.flatMap { Data(base64Encoded: $0) }, err?.isEmpty == false ? err : nil)
         }
         sendJSON(["type": "fs_read",
                   "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
+    }
+
+    /// Forgets a file-system request that timed out, so a late reply is dropped.
+    func cancelFSRequest(_ requestID: String) {
+        pendingFSRequests.removeValue(forKey: requestID)
     }
 
     /// Requests live sessions from an agent. Completion runs exactly once:

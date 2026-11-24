@@ -7,6 +7,10 @@ import ClrcCore
 /// with an empty task launches at once.
 struct NewTaskSheet: View {
     var preferredAgentID: String?
+    /// Preselected project folder (e.g. «Новая задача здесь»).
+    var preferredProject: String?
+    /// Prefilled task text (e.g. «Спросить Claude» about a file).
+    var initialPrompt: String?
     var onLaunched: (SessionRoute) -> Void = { _ in }
 
     @EnvironmentObject var relay: RelayWebSocket
@@ -74,11 +78,14 @@ struct NewTaskSheet: View {
         .onChange(of: promptFocused) { _, focused in
             if focused { detent = .large }
         }
-        .onChange(of: agentID) { _, _ in projectPath = recents.first ?? Self.homePath }
+        // Only a Mac the user picks resets the project; the initial
+        // selection in setUp keeps `preferredProject`.
+        .onChange(of: agentID) { old, _ in
+            if old != nil { projectPath = recents.first ?? Self.homePath }
+        }
         .sheet(isPresented: $showBrowser) {
             if let agent {
-                FileBrowserView(agentID: agent.id, agentName: agent.name, embedded: false, showDangerousOption: false) { path, _ in
-                    showBrowser = false
+                FolderPickerSheet(agentID: agent.id) { path in
                     projectPath = path
                 }
                 .environmentObject(relay)
@@ -242,7 +249,8 @@ struct NewTaskSheet: View {
         agentID = NewTaskPlanner.defaultAgentID(onlineAgentIDs: onlineAgents.map(\.id),
                                                 preferred: preferredAgentID,
                                                 lastProjectAgentID: lastProjectAgent)
-        projectPath = recents.first ?? Self.homePath
+        projectPath = preferredProject ?? recents.first ?? Self.homePath
+        if let initialPrompt { prompt = initialPrompt }
     }
 
     private func tapProject(_ path: String) {
