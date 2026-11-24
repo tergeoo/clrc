@@ -44,6 +44,16 @@ public final class SessionsStore {
         save()
     }
 
+    /// Terminal sessions of one agent, in insertion order.
+    public func ptySessions(forAgent agentID: String) -> [PersistedSession] {
+        sessions(forAgent: agentID).filter { $0.kind == .pty }
+    }
+
+    /// Chat sessions of one agent, in insertion order.
+    public func chatSessions(forAgent agentID: String) -> [PersistedSession] {
+        sessions(forAgent: agentID).filter { $0.kind == .chat }
+    }
+
     public func sessions(forAgent agentID: String) -> [PersistedSession] {
         sessions.filter { $0.agentID == agentID }
     }

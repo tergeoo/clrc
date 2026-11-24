@@ -127,6 +127,15 @@ public struct ReconnectPlan: Equatable, Sendable {
 /// and its return value is checked, in the test below, to contain an action
 /// for everything that went in.
 public enum ReconnectPlanner {
+    /// The plan for one agent's sessions only: its connection to the relay
+    /// came back, and the relay dropped every route through the old one.
+    public static func plan(inventory: SessionInventory, agentID: String) -> ReconnectPlan {
+        plan(inventory: SessionInventory(
+            ptySessions: inventory.ptySessions.filter { $0.agentID == agentID },
+            chatSessions: inventory.chatSessions.filter { $0.agentID == agentID }
+        ))
+    }
+
     public static func plan(inventory: SessionInventory) -> ReconnectPlan {
         ReconnectPlan(
             ptyReconnects: inventory.ptySessions.map {

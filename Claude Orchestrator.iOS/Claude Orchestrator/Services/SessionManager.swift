@@ -36,6 +36,7 @@ final class SessionManager: ObservableObject {
                 let newIDs = connectedIDs.subtracting(self.knownAgentIDs)
                 self.knownAgentIDs = connectedIDs
                 for agent in agents where newIDs.contains(agent.id) {
+                    self.reattachLive(agentID: agent.id)
                     self.reconcile(agent)
                 }
             }
@@ -79,10 +80,19 @@ final class SessionManager: ObservableObject {
     /// to trigger the gap-triggered replay either — so the history request
     /// here is not an optimization, it's required to notice a turn that
     /// finished while the app was away.
+    ///
+    /// The agent list the relay sends right after auth then counts every
+    /// online agent as a new arrival, and `reattachLive` re-sends the
+    /// connects for its sessions. The same path covers an *agent* that
+    /// reconnects on its own (sleep/wake, network change): the relay drops
+    /// every route through the agent's old connection too.
     private func handleReconnect() {
-        // Force a fresh reconcile pass when the agent list arrives after reconnect.
         knownAgentIDs.removeAll()
+    }
 
+    /// Re-`connect`s every in-memory session of one agent, PTY and chat,
+    /// and replays chat history from each session's last seen event.
+    private func reattachLive(agentID: String) {
         let inventory = SessionInventory(
             ptySessions: sessions.map {
                 PTYSessionSnapshot(id: $0.id, agentID: $0.agent.id, name: $0.customName,
@@ -93,7 +103,7 @@ final class SessionManager: ObservableObject {
                                     name: $0.customName, lastSeq: $0.transcript.lastSeq)
             }
         )
-        let plan = ReconnectPlanner.plan(inventory: inventory)
+        let plan = ReconnectPlanner.plan(inventory: inventory, agentID: agentID)
 
         for action in plan.ptyReconnects {
             relay.sendConnect(agentID: action.agentID, sessionID: action.sessionID,
@@ -188,8 +198,13 @@ final class SessionManager: ObservableObject {
     /// automatically: new sessions start from the New Session sheet, where the
     /// user picks chat, brief or terminal.
     private func reconcile(_ agent: Agent) {
+        let liveChats = Set(chatSessions.map(\.id))
+        for entry in store.chatSessions(forAgent: agent.id) where !liveChats.contains(entry.id) {
+            restoreChat(entry, agent: agent)
+        }
+
         let alreadyLive = Set(sessions.map(\.id))
-        let persisted = store.sessions(forAgent: agent.id).filter { !alreadyLive.contains($0.id) }
+        let persisted = store.ptySessions(forAgent: agent.id).filter { !alreadyLive.contains($0.id) }
 
         guard !persisted.isEmpty else { return }
 
@@ -253,6 +268,29 @@ final class SessionManager: ObservableObject {
 
     func createChatSession(for agent: Agent, cwd: String, name: String) {
         let session = ChatSession(agent: agent, cwd: cwd, customName: name)
+        store.upsert(PersistedSession(
+            id: session.id, agentID: agent.id, agentName: agent.name,
+            customName: name, projectPath: cwd == "~" ? nil : cwd,
+            kind: .chat, cwd: cwd
+        ))
+        if cwd != "~" {
+            store.addRecentProject(cwd, agentID: agent.id)
+        }
+        attachChat(session)
+    }
+
+    /// Brings back a chat session saved by an earlier launch. The agent keeps
+    /// chat sessions until they are closed, so the `connect` reattaches and a
+    /// full replay rebuilds the transcript.
+    private func restoreChat(_ entry: PersistedSession, agent: Agent) {
+        let session = ChatSession(agentID: agent.id, agentName: agent.name, sessionID: entry.id,
+                                  cwd: entry.cwd ?? "~", customName: entry.customName)
+        attachChat(session)
+        startChatReplay(for: session)
+    }
+
+    /// Adds a chat session to the UI, routes its events and sends `connect`.
+    private func attachChat(_ session: ChatSession) {
         chatSessions.append(session)
 
         relay.registerChatHandler(sessionID: session.id) { [weak self, weak session] event in
@@ -273,8 +311,8 @@ final class SessionManager: ObservableObject {
         }
 
         let options = chatConnectOptions()
-        relay.sendChatConnect(agentID: agent.id, sessionID: session.id,
-                              cwd: cwd, name: name,
+        relay.sendChatConnect(agentID: session.agent.id, sessionID: session.id,
+                              cwd: session.cwd, name: session.customName,
                               style: options.style, profile: options.profile)
     }
 
@@ -292,6 +330,7 @@ final class SessionManager: ObservableObject {
         relay.unregisterChatHandler(sessionID: session.id)
         relay.sendDisconnect(sessionID: session.id)
         chatSessions.removeAll { $0.id == session.id }
+        store.remove(id: session.id)
     }
 
     /// Attach to an existing PTY session on the agent (session_id already known).
