@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -131,13 +132,58 @@ func fsMkdir(path string) error {
 	return os.MkdirAll(resolved, 0755)
 }
 
-// fsDelete removes a file or directory recursively.
+var errDeleteHome = errors.New("refusing to delete the home directory")
+
+// fsDelete removes a file or directory recursively. Only the parent folder is
+// resolved through symlinks: the entry itself is removed as found, so deleting
+// a symlink removes the link and never the folder it points to. The home
+// directory itself can never be deleted.
 func fsDelete(path string) error {
 	resolved, err := fsResolve(path)
 	if err != nil {
 		return err
 	}
-	return os.RemoveAll(resolved)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("find home directory: %w", err)
+	}
+	realHome := home
+	if rh, err := filepath.EvalSymlinks(home); err == nil {
+		realHome = rh
+	}
+	if resolved == realHome {
+		return errDeleteHome
+	}
+
+	// Re-resolve only the parent, then name the entry itself.
+	expanded := path
+	switch {
+	case path == "~":
+		expanded = home
+	case strings.HasPrefix(path, "~/"):
+		expanded = filepath.Join(home, path[2:])
+	}
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		return fmt.Errorf("resolve %q: %w", path, err)
+	}
+	parent, err := fsResolve(filepath.Dir(filepath.Clean(abs)))
+	if err != nil {
+		return err
+	}
+	entry := filepath.Join(parent, filepath.Base(filepath.Clean(abs)))
+	if entry == realHome || !withinDir(realHome, entry) {
+		return errDeleteHome
+	}
+
+	info, err := os.Lstat(entry)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return os.Remove(entry)
+	}
+	return os.RemoveAll(entry)
 }
 
 // fsRead reads up to maxReadBytes, returns base64-encoded content.

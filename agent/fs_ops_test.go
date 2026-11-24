@@ -85,3 +85,45 @@ func TestFSResolveSymlinkEscapeRejected(t *testing.T) {
 		t.Error("fsListDir through an outward symlink should be rejected")
 	}
 }
+
+// Deleting a symlink must remove the link itself, never the folder it points
+// to — the iOS folder browser offers delete on every row.
+func TestFSDeleteRemovesSymlinkNotTarget(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	target := filepath.Join(home, "Documents")
+	if err := os.MkdirAll(filepath.Join(target, "keep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, "proj", "docs")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := fsDelete("~/proj/docs"); err != nil {
+		t.Fatalf("fsDelete: %v", err)
+	}
+	if _, err := os.Lstat(link); !os.IsNotExist(err) {
+		t.Errorf("link still exists: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "keep")); err != nil {
+		t.Errorf("symlink target was deleted: %v", err)
+	}
+}
+
+func TestFSDeleteRefusesHomeItself(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	for _, p := range []string{"~", home, "~/"} {
+		if err := fsDelete(p); err == nil {
+			t.Errorf("fsDelete(%q) succeeded, want refusal", p)
+		}
+	}
+	if _, err := os.Stat(home); err != nil {
+		t.Fatalf("home removed: %v", err)
+	}
+}
