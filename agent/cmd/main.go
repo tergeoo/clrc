@@ -355,6 +355,7 @@ func run() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatal(err)
 	}
+	_ = os.Setenv("PATH", agent.WithToolDirs(os.Getenv("PATH"), home))
 	applyClaudeSettings(&cfg, home)
 
 	log.Printf("Starting CLRC")
@@ -363,6 +364,11 @@ func run() {
 	log.Printf("  Relay:    %s", cfg.RelayURL)
 	log.Printf("  Command:  %s", cfg.DefaultCommand)
 	log.Printf("  Claude config dir: %q, output style: %q", cfg.ClaudeConfigDir, cfg.OutputStyle)
+	if bin, err := exec.LookPath("claude"); err != nil {
+		log.Printf("WARNING: claude not found on PATH %q; chat sessions will fail", os.Getenv("PATH"))
+	} else {
+		log.Printf("  Claude binary: %s", bin)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
