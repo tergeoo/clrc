@@ -265,7 +265,8 @@ final class SessionManager: ObservableObject {
         remember(request.mode)
 
         guard let display = request.mode.displayMode else {
-            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: request.cwd, prompt: request.prompt))
+            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(
+                cwd: request.cwd, prompt: request.prompt, skipPermissions: request.skipPermissions))
             guard let created = sessions.last else { return nil }
             rename(created, to: request.name)
             return .terminal(id: created.id)

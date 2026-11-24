@@ -98,8 +98,8 @@ struct DesignPreviewRoot: View {
     let state: String
 
     var body: some View {
-        if state == "newtask" {
-            NewTaskPreviewHost()
+        if state == "newtask" || state == "newtaskdanger" {
+            NewTaskPreviewHost(danger: state == "newtaskdanger")
         } else if ProjectsPreviewHost.states.contains(state) {
             ProjectsPreviewHost(state: state)
         } else if FilesPreviewHost.states.contains(state) {
@@ -130,8 +130,10 @@ struct DesignPreviewRoot: View {
         @StateObject private var relay: RelayWebSocket
         @StateObject private var sessionManager: SessionManager
         @State private var shown = true
+        let danger: Bool
 
-        init() {
+        init(danger: Bool) {
+            self.danger = danger
             let (relay, manager) = PreviewEnvironment.make(agents: PreviewEnvironment.macs, recents: PreviewEnvironment.recents)
             _relay = StateObject(wrappedValue: relay)
             _sessionManager = StateObject(wrappedValue: manager)
@@ -140,7 +142,7 @@ struct DesignPreviewRoot: View {
         var body: some View {
             Palette.bg.ignoresSafeArea()
                 .sheet(isPresented: $shown) {
-                    NewTaskSheet(preferredAgentID: "mbp")
+                    NewTaskSheet(preferredAgentID: "mbp", previewDanger: danger)
                         .environmentObject(relay)
                         .environmentObject(sessionManager)
                 }

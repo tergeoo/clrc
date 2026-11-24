@@ -11,6 +11,10 @@ struct NewTaskSheet: View {
     var preferredProject: String?
     /// Prefilled task text (e.g. «Спросить Claude» about a file).
     var initialPrompt: String?
+    #if DEBUG
+    /// `-designPreview newtaskdanger`: Terminal mode, «Дополнительно» open, toggle on.
+    var previewDanger = false
+    #endif
     var onLaunched: (SessionRoute) -> Void = { _ in }
 
     @EnvironmentObject var relay: RelayWebSocket
@@ -29,6 +33,9 @@ struct NewTaskSheet: View {
     @State private var model = ""
     @State private var profile = ""
     @State private var showAdvanced = false
+    /// «Без подтверждений (опасно)»: never remembered, off on every open.
+    @State private var skipPermissions = false
+    @State private var confirmSkipPermissions = false
     @State private var showBrowser = false
     @State private var detent: PresentationDetent = .medium
     @FocusState private var promptFocused: Bool
@@ -204,10 +211,45 @@ struct NewTaskSheet: View {
             }
             .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
             .padding(.top, 8)
+            permissionsRow
         }
         .font(.system(size: 15))
         .tint(Palette.sec)
     }
+
+    /// Terminal: the red toggle. Chat/Brief: the agent already runs them
+    /// with bypassPermissions, so say that instead of a toggle that does nothing.
+    @ViewBuilder
+    private var permissionsRow: some View {
+        if mode == .terminal {
+            Toggle(isOn: Binding(get: { skipPermissions }, set: { on in
+                if on { confirmSkipPermissions = true } else { skipPermissions = false }
+            })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Без подтверждений (опасно)").font(.system(size: 15, weight: .semibold)).foregroundStyle(Palette.red)
+                    Text("claude --dangerously-skip-permissions").font(.system(size: 11, design: .monospaced)).foregroundStyle(Palette.meta)
+                }
+            }
+            .tint(Palette.red)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 56)
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
+            .padding(.top, 8)
+            .alert("Запуск без подтверждений", isPresented: $confirmSkipPermissions) {
+                Button("Включить", role: .destructive) { skipPermissions = true }
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Claude будет менять файлы и запускать команды без вопросов. Включить?")
+            }
+        } else {
+            Text("В Chat и Brief Claude работает без подтверждений: агент запускает его с bypassPermissions.")
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.meta)
+                .padding(.top, 8)
+        }
+    }
+
+    private var dangerous: Bool { skipPermissions && mode == .terminal }
 
     /// While typing, Мак · проект · режим shrink to one row of chips.
     private var compactSummary: some View {
@@ -223,12 +265,12 @@ struct NewTaskSheet: View {
     private var bottomBar: some View {
         VStack(spacing: 6) {
             Button(action: launch) {
-                Text("Запустить в \(projectName)")
+                Text(dangerous ? "Запустить без подтверждений" : "Запустить в \(projectName)")
                     .font(.system(size: 17, weight: .semibold))
                     .lineLimit(1)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Palette.tint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(dangerous ? Palette.red : Palette.tint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .disabled(agent == nil)
             Button("Пустой терминал", action: launchEmptyTerminal)
@@ -251,6 +293,9 @@ struct NewTaskSheet: View {
                                                 lastProjectAgentID: lastProjectAgent)
         projectPath = preferredProject ?? recents.first ?? Self.homePath
         if let initialPrompt { prompt = initialPrompt }
+        #if DEBUG
+        if previewDanger { mode = .terminal; showAdvanced = true; skipPermissions = true; detent = .large }
+        #endif
     }
 
     private func tapProject(_ path: String) {
@@ -261,7 +306,8 @@ struct NewTaskSheet: View {
     private func launch() {
         guard let agent else { return }
         let request = NewTaskPlanner.request(agentID: agent.id, cwd: projectPath, mode: mode, prompt: prompt,
-                                             customName: customName, model: model, profile: profile)
+                                             customName: customName, model: model, profile: profile,
+                                             skipPermissions: skipPermissions)
         finish(sessionManager.launch(request))
     }
 
