@@ -414,6 +414,23 @@ final class SessionManager: ObservableObject {
         )
     }
 
+    /// Renames a chat session in the app and in the saved session list. The
+    /// agent keeps the name it was started with; only this app shows it.
+    func renameChat(_ session: ChatSession, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        session.customName = trimmed
+        store.rename(id: session.id, to: trimmed)
+    }
+
+    /// A shell in `cwd` on the given Mac («Терминал здесь»).
+    @discardableResult
+    func openTerminal(in cwd: String, agentID: String) -> SessionRoute? {
+        guard let agent = agentFor(id: agentID) else { return nil }
+        createSession(for: agent, initialCommand: ShellCommand.cd(cwd))
+        return sessions.last.map { .terminal(id: $0.id) }
+    }
+
     /// Explicitly close a session: kills the PTY on the Mac and forgets it.
     func close(_ session: TerminalSession) {
         relay.sendDisconnect(sessionID: session.id)

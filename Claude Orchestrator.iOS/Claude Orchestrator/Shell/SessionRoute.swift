@@ -1,5 +1,18 @@
 import SwiftUI
 
+private struct OpenSessionRouteKey: EnvironmentKey {
+    static let defaultValue: @MainActor (SessionRoute) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Pushes another session (e.g. «Терминал здесь» from a chat) onto the
+    /// current stack. Set by `MainTabView`.
+    var openSessionRoute: @MainActor (SessionRoute) -> Void {
+        get { self[OpenSessionRouteKey.self] }
+        set { self[OpenSessionRouteKey.self] = newValue }
+    }
+}
+
 /// A session opened full screen from the Inbox or Projects.
 enum SessionRoute: Hashable {
     case chat(id: String)

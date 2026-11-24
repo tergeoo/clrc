@@ -20,6 +20,7 @@ struct MainTabView: View {
                 InboxView(path: $inboxPath)
                     .navigationDestination(for: SessionRoute.self) { SessionScreen(route: $0) }
             }
+            .environment(\.openSessionRoute) { inboxPath.append($0) }
             .tabItem { Label("Входящие", systemImage: "tray.full") }
             .tag(MainTab.inbox)
 
