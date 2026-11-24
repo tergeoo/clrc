@@ -262,9 +262,9 @@ func (c *WSClient) handleText(ctx context.Context, data []byte) {
 	case "fs_read":
 		c.handleFSRead(ctx, msg.Payload)
 	case "git_status":
-		c.handleGitStatus(ctx, msg.Payload)
+		c.runGitRequest(func() { c.handleGitStatus(ctx, msg.Payload) })
 	case "git_diff":
-		c.handleGitDiff(ctx, msg.Payload)
+		c.runGitRequest(func() { c.handleGitDiff(ctx, msg.Payload) })
 	case "chat_send":
 		c.handleChatSend(msg.Payload)
 	case "chat_interrupt":
@@ -684,6 +684,20 @@ func (c *WSClient) handleFSList(ctx context.Context, payload json.RawMessage) {
 	})
 }
 
+// maxConcurrentGit bounds git requests running at once; they run off the
+// read loop so a slow diff never stalls terminal input or chat.
+const maxConcurrentGit = 2
+
+var gitSlots = make(chan struct{}, maxConcurrentGit)
+
+func (c *WSClient) runGitRequest(handle func()) {
+	go func() {
+		gitSlots <- struct{}{}
+		defer func() { <-gitSlots }()
+		handle()
+	}()
+}
+
 // handleGitStatus answers git_status with the project's branch and changes.
 func (c *WSClient) handleGitStatus(ctx context.Context, payload json.RawMessage) {
 	var req struct {
@@ -705,6 +719,8 @@ func (c *WSClient) handleGitStatus(ctx context.Context, payload json.RawMessage)
 		"ahead":      st.Ahead,
 		"behind":     st.Behind,
 		"files":      st.Files,
+		"total":      st.Total,
+		"truncated":  st.Truncated,
 		"error":      errStr,
 	})
 }

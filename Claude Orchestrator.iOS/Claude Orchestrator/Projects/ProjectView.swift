@@ -92,7 +92,7 @@ struct ProjectView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    Button("Все изменения (\(git.files.count))") {
+                    Button("Все изменения (\(git.total))") {
                         openDiff(DiffRoute(agentID: agentID, repo: path, files: nil, title: "Изменения \(name)"))
                     }
                 }

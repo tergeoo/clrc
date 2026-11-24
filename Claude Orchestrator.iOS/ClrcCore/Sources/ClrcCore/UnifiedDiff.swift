@@ -33,6 +33,9 @@ public struct GitStatusInfo: Equatable, Sendable {
     public let ahead: Int
     public let behind: Int
     public let files: [GitFileStatus]
+    /// All changed files; `files` holds at most the agent's cap.
+    public let total: Int
+    public let truncated: Bool
     public var isDirty: Bool { !files.isEmpty }
 
     /// nil when the agent reported an error (e.g. not a git repository).
@@ -46,6 +49,8 @@ public struct GitStatusInfo: Equatable, Sendable {
             guard let path = entry["path"] as? String, !path.isEmpty else { return nil }
             return GitFileStatus(path: path, status: entry["status"] as? String ?? "")
         }
+        total = payload["total"] as? Int ?? files.count
+        truncated = payload["truncated"] as? Bool ?? false
     }
 }
 
@@ -107,7 +112,10 @@ public enum UnifiedDiff {
                 current = DiffFile(oldPath: a, newPath: b, kind: .modified)
                 continue
             }
+            // Take the file out of `current` so mutations below happen in
+            // place; a second reference would copy the arrays on every line.
             guard var file = current else { continue }
+            current = nil
             defer { current = file }
 
             if file.hunks.isEmpty || !isHunkBody(line) {
@@ -132,27 +140,33 @@ public enum UnifiedDiff {
                 if file.hunks.isEmpty { continue }
             }
 
-            var hunk = file.hunks.removeLast()
+            let last = file.hunks.count - 1
             switch line.first {
             case "+":
-                hunk.lines.append(DiffLine(kind: .added, oldNumber: nil, newNumber: newLine, text: String(line.dropFirst())))
+                file.hunks[last].lines.append(DiffLine(kind: .added, oldNumber: nil, newNumber: newLine, text: lineText(line)))
                 newLine += 1
                 file.additions += 1
             case "-":
-                hunk.lines.append(DiffLine(kind: .removed, oldNumber: oldLine, newNumber: nil, text: String(line.dropFirst())))
+                file.hunks[last].lines.append(DiffLine(kind: .removed, oldNumber: oldLine, newNumber: nil, text: lineText(line)))
                 oldLine += 1
                 file.deletions += 1
             case "\\":
-                hunk.lines.append(DiffLine(kind: .noNewline, oldNumber: nil, newNumber: nil, text: String(line.dropFirst(2))))
+                file.hunks[last].lines.append(DiffLine(kind: .noNewline, oldNumber: nil, newNumber: nil, text: String(line.dropFirst(2))))
             default:
-                hunk.lines.append(DiffLine(kind: .context, oldNumber: oldLine, newNumber: newLine, text: String(line.dropFirst())))
+                file.hunks[last].lines.append(DiffLine(kind: .context, oldNumber: oldLine, newNumber: newLine, text: lineText(line)))
                 oldLine += 1
                 newLine += 1
             }
-            file.hunks.append(hunk)
         }
         finish()
         return files
+    }
+
+    /// The line without its +/−/space marker (and a CRLF file's "\r").
+    private static func lineText(_ line: String) -> String {
+        var text = String(line.dropFirst())
+        if text.hasSuffix("\r") { text.removeLast() }
+        return text
     }
 
     private static func isHunkBody(_ line: String) -> Bool {

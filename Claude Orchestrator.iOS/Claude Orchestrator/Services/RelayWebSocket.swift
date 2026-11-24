@@ -517,6 +517,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     private func scheduleReconnect() {
         reconnectTask?.cancel()
+        // Signed out (e.g. «Выйти» closed the socket): no reconnect loop.
+        guard authService.isAuthenticated else { return }
         reconnectTask = Task { [weak self] in
             var delay: UInt64 = 2_000_000_000 // 2 seconds
             while !Task.isCancelled {

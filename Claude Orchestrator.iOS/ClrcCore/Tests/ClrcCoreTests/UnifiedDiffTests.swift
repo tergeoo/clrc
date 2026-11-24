@@ -111,3 +111,19 @@ index 1111111..2222222 100644
     #expect(DiffPaths.relative(["~/dev/api/z.go"], to: "~/dev/api") == ["z.go"])
     #expect(DiffPaths.relative(["/u/api/"], to: "/u/api/") == ["/u/api/"])
 }
+
+// Review fix: appending through a copied DiffFile made parsing quadratic.
+@Test func parsingAHugeHunkIsFast() {
+    let lines = (0..<30_000).map { "+line \($0)" }.joined(separator: "\n")
+    let text = "diff --git a/big.lock b/big.lock\nnew file mode 100644\n--- /dev/null\n+++ b/big.lock\n@@ -0,0 +1,30000 @@\n" + lines
+    let start = Date()
+    let files = UnifiedDiff.parse(text)
+    #expect(files.first?.additions == 30_000)
+    #expect(Date().timeIntervalSince(start) < 1.5)
+}
+
+@Test func gitStatusInfoCarriesTruncation() {
+    let info = GitStatusInfo(payload: ["branch": "main", "files": [["path": "a", "status": "??"]], "total": 4000, "truncated": true])
+    #expect(info?.truncated == true)
+    #expect(info?.total == 4000)
+}

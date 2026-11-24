@@ -28,7 +28,8 @@ struct ChangesScreen: View {
         }
         .navigationTitle(route.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        // Once: coming back from a file must not re-request and re-parse.
+        .task { if diff == nil { await load() } }
         .navigationDestination(item: $openIndex) { index in
             if let diff {
                 DiffFileScreen(files: diff.files, index: index, viewed: $viewed)

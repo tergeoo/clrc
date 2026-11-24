@@ -16,6 +16,13 @@ import (
 const (
 	gitTimeout   = 10 * time.Second
 	maxDiffBytes = 512 << 10
+	// maxStatusFiles bounds a status reply: a non-ignored node_modules can
+	// list tens of thousands of files and overflow the relay's 4 MB frame.
+	maxStatusFiles = 1000
+	// maxUntrackedDiffs bounds the per-file `git diff --no-index` runs.
+	maxUntrackedDiffs = 200
+	// gitDiffDeadline bounds a whole git_diff request.
+	gitDiffDeadline = 15 * time.Second
 	// emptyTree is git's well-known empty tree: the base for a repo
 	// without commits.
 	emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
@@ -34,25 +41,48 @@ type GitFile struct {
 
 // GitStatus is a project's branch and changed files.
 type GitStatus struct {
-	Branch   string    `json:"branch"`
-	Upstream string    `json:"upstream"`
-	Ahead    int       `json:"ahead"`
-	Behind   int       `json:"behind"`
-	Files    []GitFile `json:"files"`
+	Branch    string    `json:"branch"`
+	Upstream  string    `json:"upstream"`
+	Ahead     int       `json:"ahead"`
+	Behind    int       `json:"behind"`
+	Files     []GitFile `json:"files"`
+	Total     int       `json:"total"`
+	Truncated bool      `json:"truncated"`
 }
 
 // gitStatus reports the branch and changed files of the repo at path
 // (confined to home like every fs op).
+// Paths are relative to the repository root, whatever subfolder path is.
 func gitStatus(ctx context.Context, path string) (GitStatus, error) {
 	dir, err := fsResolve(path)
 	if err != nil {
 		return GitStatus{}, err
 	}
-	out, err := runGit(ctx, dir, nil, "status", "--porcelain=v1", "-b", "-z", "--untracked-files=all")
+	top, err := repoRoot(ctx, dir)
 	if err != nil {
 		return GitStatus{}, err
 	}
-	return parseGitStatus(out), nil
+	out, err := runGit(ctx, top, nil, "status", "--porcelain=v1", "-b", "-z", "--untracked-files=all")
+	if err != nil {
+		return GitStatus{}, err
+	}
+	st := parseGitStatus(out)
+	st.Total = len(st.Files)
+	if len(st.Files) > maxStatusFiles {
+		st.Files = st.Files[:maxStatusFiles]
+		st.Truncated = true
+	}
+	return st, nil
+}
+
+// repoRoot is the top level of the repository containing dir, kept inside
+// the home confinement.
+func repoRoot(ctx context.Context, dir string) (string, error) {
+	out, err := runGit(ctx, dir, nil, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", err
+	}
+	return fsResolve(strings.TrimSpace(string(out)))
 }
 
 func parseGitStatus(out []byte) GitStatus {
@@ -114,38 +144,52 @@ func parseBranchHeader(h string, st *GitStatus) {
 // (or the empty tree in a repo without commits), untracked files as
 // additions, limited to files when given, capped at maxDiffBytes.
 func gitDiff(ctx context.Context, path string, files []string) (string, bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, gitDiffDeadline)
+	defer cancel()
 	dir, err := fsResolve(path)
 	if err != nil {
 		return "", false, err
 	}
-	rel, err := safeRepoFiles(dir, files)
+	top, err := repoRoot(ctx, dir)
+	if err != nil {
+		return "", false, err
+	}
+	specs, err := safeRepoFiles(top, dir, files)
 	if err != nil {
 		return "", false, err
 	}
 
 	out := &cappedBuffer{limit: maxDiffBytes}
 	base := "HEAD"
-	if _, err := runGit(ctx, dir, nil, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
-		if errors.Is(err, errNotGitRepo) {
+	if _, err := runGit(ctx, top, nil, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
+		// Exit 1 is "no such ref": a repo without commits. Anything else
+		// (a timeout, a broken repo) is an error, not an empty base.
+		if !isExitCode(err, 1) {
 			return "", false, err
 		}
 		base = emptyTree
 	}
-	args := append([]string{"diff", base, "--no-color", "--no-ext-diff", "--no-textconv", "--"}, rel...)
-	if _, err := runGit(ctx, dir, out, args...); err != nil {
+	args := append([]string{"diff", base, "--no-color", "--no-ext-diff", "--no-textconv", "--"}, specs...)
+	if _, err := runGit(ctx, top, out, args...); err != nil {
 		return "", false, err
 	}
 
-	untracked, err := runGit(ctx, dir, nil, append([]string{"ls-files", "--others", "--exclude-standard", "-z", "--"}, rel...)...)
+	untracked, err := runGit(ctx, top, nil, append([]string{"ls-files", "--others", "--exclude-standard", "-z", "--"}, specs...)...)
 	if err != nil {
 		return "", false, err
 	}
+	diffed := 0
 	for _, file := range strings.Split(string(untracked), "\x00") {
 		if file == "" || out.full() {
 			continue
 		}
+		if diffed == maxUntrackedDiffs {
+			out.truncated = true
+			break
+		}
+		diffed++
 		// --no-index exits 1 when the files differ, which they always do here.
-		if _, err := runGit(ctx, dir, out, "diff", "--no-index", "--no-color", "--no-ext-diff", "--no-textconv",
+		if _, err := runGit(ctx, top, out, "diff", "--no-index", "--no-color", "--no-ext-diff", "--no-textconv",
 			"--", os.DevNull, file); err != nil && !isExitCode(err, 1) {
 			return "", false, err
 		}
@@ -153,10 +197,17 @@ func gitDiff(ctx context.Context, path string, files []string) (string, bool, er
 	return out.String(), out.truncated, nil
 }
 
-// safeRepoFiles turns client-supplied paths into paths relative to dir,
-// refusing anything that could escape it or be read as a git option.
-func safeRepoFiles(dir string, files []string) ([]string, error) {
-	rel := make([]string, 0, len(files))
+// safeRepoFiles turns client-supplied paths into literal pathspecs
+// relative to the repository root top, refusing anything that could escape
+// it or be read as a git option. A relative path may be repo-relative (git
+// status) or relative to the session folder dir (report fallback); both
+// readings are passed, and the one that does not exist matches nothing.
+func safeRepoFiles(top, dir string, files []string) ([]string, error) {
+	prefix, err := filepath.Rel(top, dir)
+	if err != nil || prefix == ".." || strings.HasPrefix(prefix, "../") {
+		return nil, errUnsafeFile
+	}
+	specs := make([]string, 0, 2*len(files))
 	for _, f := range files {
 		if f == "" || strings.HasPrefix(f, "-") {
 			return nil, errUnsafeFile
@@ -169,19 +220,29 @@ func safeRepoFiles(dir string, files []string) ([]string, error) {
 			f = filepath.Join(home, f[2:])
 		}
 		if filepath.IsAbs(f) {
-			r, err := filepath.Rel(dir, resolveExisting(filepath.Clean(f)))
-			if err != nil {
+			r, err := filepath.Rel(top, resolveExisting(filepath.Clean(f)))
+			if err != nil || !safeRelative(r) {
 				return nil, errUnsafeFile
 			}
-			f = r
+			specs = append(specs, r)
+			continue
 		}
 		clean := filepath.Clean(f)
-		if clean == ".." || strings.HasPrefix(clean, "../") || filepath.IsAbs(clean) || strings.HasPrefix(clean, "-") {
+		if !safeRelative(clean) {
 			return nil, errUnsafeFile
 		}
-		rel = append(rel, clean)
+		specs = append(specs, clean)
+		if prefix != "." {
+			if under := filepath.Join(prefix, clean); under != clean {
+				specs = append(specs, under)
+			}
+		}
 	}
-	return rel, nil
+	return specs, nil
+}
+
+func safeRelative(p string) bool {
+	return p != ".." && !strings.HasPrefix(p, "../") && !filepath.IsAbs(p) && !strings.HasPrefix(p, "-")
 }
 
 // runGit runs git in dir with a timeout and no prompts, pagers or external
@@ -189,9 +250,10 @@ func safeRepoFiles(dir string, files []string) ([]string, error) {
 func runGit(ctx context.Context, dir string, out *cappedBuffer, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
-	full := append([]string{"--no-pager", "-c", "core.quotepath=off", "-C", dir}, args...)
+	full := append([]string{"--no-pager", "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", "-C", dir}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_OPTIONAL_LOCKS=0")
+	// Literal pathspecs: «app/[id]/page.tsx» must not match «app/i/page.tsx».
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_OPTIONAL_LOCKS=0", "GIT_LITERAL_PATHSPECS=1")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	if out != nil {

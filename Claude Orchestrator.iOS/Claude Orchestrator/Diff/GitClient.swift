@@ -47,8 +47,12 @@ struct GitClient {
                     return
                 }
                 let text = payload["diff"] as? String ?? ""
-                done(.success(ProjectDiff(files: UnifiedDiff.parse(text),
-                                          truncated: payload["truncated"] as? Bool ?? false)))
+                let truncated = payload["truncated"] as? Bool ?? false
+                // Up to 512 KB of diff: parse off the main thread.
+                Task.detached(priority: .userInitiated) {
+                    let files = UnifiedDiff.parse(text)
+                    await MainActor.run { done(.success(ProjectDiff(files: files, truncated: truncated))) }
+                }
             }
         }
     }
