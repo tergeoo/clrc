@@ -261,6 +261,10 @@ func (c *WSClient) handleText(ctx context.Context, data []byte) {
 		c.handleFSDelete(ctx, msg.Payload)
 	case "fs_read":
 		c.handleFSRead(ctx, msg.Payload)
+	case "git_status":
+		c.handleGitStatus(ctx, msg.Payload)
+	case "git_diff":
+		c.handleGitDiff(ctx, msg.Payload)
 	case "chat_send":
 		c.handleChatSend(msg.Payload)
 	case "chat_interrupt":
@@ -677,6 +681,54 @@ func (c *WSClient) handleFSList(ctx context.Context, payload json.RawMessage) {
 		"resolved_path": resolved,
 		"entries":       entries,
 		"error":         errStr,
+	})
+}
+
+// handleGitStatus answers git_status with the project's branch and changes.
+func (c *WSClient) handleGitStatus(ctx context.Context, payload json.RawMessage) {
+	var req struct {
+		RequestID string `json:"request_id"`
+		Path      string `json:"path"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	st, err := gitStatus(ctx, req.Path)
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	c.sendTextMsg(ctx, "git_status_result", map[string]any{
+		"request_id": req.RequestID,
+		"branch":     st.Branch,
+		"upstream":   st.Upstream,
+		"ahead":      st.Ahead,
+		"behind":     st.Behind,
+		"files":      st.Files,
+		"error":      errStr,
+	})
+}
+
+// handleGitDiff answers git_diff with the working-tree diff (capped).
+func (c *WSClient) handleGitDiff(ctx context.Context, payload json.RawMessage) {
+	var req struct {
+		RequestID string   `json:"request_id"`
+		Path      string   `json:"path"`
+		Files     []string `json:"files"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return
+	}
+	diff, truncated, err := gitDiff(ctx, req.Path, req.Files)
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	c.sendTextMsg(ctx, "git_diff_result", map[string]any{
+		"request_id": req.RequestID,
+		"diff":       diff,
+		"truncated":  truncated,
+		"error":      errStr,
 	})
 }
 
