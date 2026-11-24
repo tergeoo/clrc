@@ -17,7 +17,7 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $tab) {
             NavigationStack(path: $inboxPath) {
-                Text("Входящие")
+                InboxView(path: $inboxPath)
                     .navigationDestination(for: SessionRoute.self) { SessionScreen(route: $0) }
             }
             .tabItem { Label("Входящие", systemImage: "tray.full") }

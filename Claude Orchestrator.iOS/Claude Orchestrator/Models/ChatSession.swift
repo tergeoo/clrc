@@ -12,6 +12,9 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     let id: String
     let agent: Agent
     let cwd: String
+    /// When this app instance created or restored the session; the Inbox's
+    /// "updated" time until the first event arrives.
+    let createdAt = Date()
 
     @Published var customName: String
     @Published var transcript = ChatTranscript()

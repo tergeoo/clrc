@@ -40,6 +40,19 @@ struct RootView: View {
     @EnvironmentObject var authService: AuthService
 
     var body: some View {
+        #if DEBUG
+        if let state = DesignPreviewRoot.requestedState {
+            DesignPreviewRoot(state: state)
+        } else {
+            authenticatedOrLogin
+        }
+        #else
+        authenticatedOrLogin
+        #endif
+    }
+
+    @ViewBuilder
+    private var authenticatedOrLogin: some View {
         if authService.isAuthenticated {
             MainTabView()
         } else {

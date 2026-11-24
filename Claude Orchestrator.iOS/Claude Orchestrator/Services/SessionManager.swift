@@ -326,6 +326,11 @@ final class SessionManager: ObservableObject {
         return (style, profile)
     }
 
+    /// Interrupts the running turn of a chat session.
+    func stop(_ session: ChatSession) {
+        relay.sendChatInterrupt(sessionID: session.id)
+    }
+
     func closeChat(_ session: ChatSession) {
         relay.unregisterChatHandler(sessionID: session.id)
         relay.sendDisconnect(sessionID: session.id)
@@ -402,6 +407,12 @@ final class SessionManager: ObservableObject {
         } else {
             createSession(for: agent)
         }
+    }
+
+    /// Restarts an ended session by its id, if it is still listed.
+    func restart(endedID: String) {
+        guard let tombstone = tombstones.first(where: { $0.id == endedID }) else { return }
+        restartTombstone(tombstone)
     }
 
     func removeTombstone(id: String) {
