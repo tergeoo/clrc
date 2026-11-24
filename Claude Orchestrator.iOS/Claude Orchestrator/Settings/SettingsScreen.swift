@@ -132,7 +132,15 @@ struct SettingsScreen: View {
 
     private var integrations: some View {
         Section("Интеграции") {
-            soonRow("GitLab", symbol: "arrow.triangle.branch")
+            NavigationLink {
+                GitLabSettingsView()
+            } label: {
+                LabeledContent {
+                    Text(GitLabCredentials.api == nil ? "не подключён" : "подключён").foregroundStyle(Palette.meta)
+                } label: {
+                    Label("GitLab", systemImage: "arrow.triangle.branch")
+                }
+            }
             soonRow("Уведомления", symbol: "bell")
         }
     }
