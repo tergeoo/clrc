@@ -19,8 +19,11 @@ struct MainTabView: View {
             NavigationStack(path: $inboxPath) {
                 InboxView(path: $inboxPath)
                     .navigationDestination(for: SessionRoute.self) { SessionScreen(route: $0) }
+                    .diffDestinations()
+                    .fileDestinations()
             }
             .environment(\.openSessionRoute) { inboxPath.append($0) }
+            .environment(\.openDiff) { inboxPath.append($0) }
             .tabItem { Label("Входящие", systemImage: "tray.full") }
             .tag(MainTab.inbox)
 

@@ -9,6 +9,7 @@ struct ChatScreen: View {
     @EnvironmentObject var sessionManager: SessionManager
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openSessionRoute) private var openSessionRoute
+    @Environment(\.openDiff) private var openDiffRoute
     @AppStorage(ChatDisplayMode.storageKey) private var displayMode: ChatDisplayMode = .chat
 
     @State private var draft = ""
@@ -59,6 +60,11 @@ struct ChatScreen: View {
             send: { text in
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
+                // «Покажи diff» opens the diff on the phone when there is one.
+                if trimmed == Self.showDiffChip, let files = session.transcript.latestReport?.changedFiles, !files.isEmpty {
+                    openDiff(files)
+                    return
+                }
                 relay.sendChatMessage(sessionID: session.id, text: trimmed)
                 sendGate.begin(atSeq: session.transcript.lastSeq, now: Date())
                 sendToken += 1
@@ -79,8 +85,16 @@ struct ChatScreen: View {
             close: {
                 sessionManager.closeChat(session)
                 dismiss()
-            }
+            },
+            openDiff: openDiff
         )
+    }
+
+    static let showDiffChip = "Покажи diff"
+
+    private func openDiff(_ files: [String]) {
+        openDiffRoute(DiffRoute(agentID: session.agent.id, repo: session.cwd,
+                                files: DiffPaths.relative(files, to: session.cwd), title: "Изменения хода"))
     }
 }
 

@@ -40,4 +40,6 @@ struct ChatActions {
     var setMode: (ChatDisplayMode) -> Void = { _ in }
     var openTerminal: () -> Void = {}
     var close: () -> Void = {}
+    /// Opens the diff of these files (a report's `changed_files`).
+    var openDiff: ([String]) -> Void = { _ in }
 }

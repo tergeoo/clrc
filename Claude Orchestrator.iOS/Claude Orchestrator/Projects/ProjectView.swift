@@ -10,7 +10,12 @@ struct ProjectView: View {
     @EnvironmentObject var relay: RelayWebSocket
     @EnvironmentObject var sessionManager: SessionManager
     @Environment(\.openSessionRoute) private var openSessionRoute
+    @Environment(\.openDiff) private var openDiff
     @State private var newTask = false
+    @State private var git: GitStatusInfo?
+    @State private var gitError: String?
+    /// Fixture status for previews; skips the request.
+    var previewGit: GitStatusInfo?
 
     private var name: String { (path as NSString).lastPathComponent }
     private var online: Bool { relay.agents.contains { $0.id == agentID && $0.connected } }
@@ -32,6 +37,19 @@ struct ProjectView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name).font(.system(size: 22, weight: .bold))
                     Text(ChatContent.shortPath(path)).font(.system(size: 13, design: .monospaced)).foregroundStyle(Palette.meta)
+                    if let git {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.branch")
+                            Text(git.branch.isEmpty ? "—" : git.branch).font(.system(size: 13, design: .monospaced))
+                            if git.ahead > 0 { Text("↑\(git.ahead)") }
+                            if git.behind > 0 { Text("↓\(git.behind)") }
+                            if git.isDirty {
+                                Text("· есть изменения").foregroundStyle(Palette.orange)
+                            }
+                        }
+                        .font(.system(size: 13))
+                        .foregroundStyle(Palette.sec)
+                    }
                 }
                 .padding(.vertical, 4)
                 HStack(spacing: 10) {
@@ -60,6 +78,30 @@ struct ProjectView: View {
                 }
             }
 
+            if let git, git.isDirty {
+                Section("Изменения") {
+                    ForEach(git.files.prefix(Self.maxChangedRows)) { file in
+                        Button {
+                            openDiff(DiffRoute(agentID: agentID, repo: path, files: [file.path], title: (file.path as NSString).lastPathComponent))
+                        } label: {
+                            HStack(spacing: 10) {
+                                ChangeBadge(kind: file.kind)
+                                Text(file.path).font(.system(size: 13, design: .monospaced)).lineLimit(1).truncationMode(.head)
+                            }
+                            .frame(minHeight: Metrics.minTapTarget)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button("Все изменения (\(git.files.count))") {
+                        openDiff(DiffRoute(agentID: agentID, repo: path, files: nil, title: "Изменения \(name)"))
+                    }
+                }
+            } else if let gitError {
+                Section("Изменения") {
+                    Text(gitError).font(.system(size: 14)).foregroundStyle(Palette.meta)
+                }
+            }
+
             Section("Файлы") {
                 NavigationLink(value: ProjectsRoute.folder(agentID: agentID, path: path)) {
                     Label("Открыть файлы проекта", systemImage: "folder")
@@ -69,8 +111,26 @@ struct ProjectView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: online) { await loadGit() }
+        .refreshable { await loadGit() }
         .sheet(isPresented: $newTask) {
             NewTaskSheet(preferredAgentID: agentID, preferredProject: path, onLaunched: openSessionRoute)
+        }
+    }
+
+    private static let maxChangedRows = 8
+
+    private func loadGit() async {
+        if let previewGit { git = previewGit; return }
+        guard online else { return }
+        do {
+            git = try await GitClient(relay: relay).status(agentID: agentID, path: path)
+            gitError = nil
+        } catch GitClientError.notARepository {
+            git = nil
+            gitError = nil
+        } catch {
+            gitError = error.localizedDescription
         }
     }
 

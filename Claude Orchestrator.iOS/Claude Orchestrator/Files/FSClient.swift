@@ -54,15 +54,23 @@ struct FSClient {
         }
     }
 
-    /// Sends one request; resumes exactly once, with the reply or a timeout.
     private func request<T>(_ send: (String, @escaping (Result<T, Error>) -> Void) -> Void) async throws -> T {
+        try await RelayRequest.perform(relay: relay, timeout: Self.timeout, send)
+    }
+}
+
+/// One correlated relay request: resumes exactly once, with the reply or
+/// `FSClientError.timeout`, and forgets the request on timeout.
+@MainActor
+enum RelayRequest {
+    static func perform<T>(relay: RelayWebSocket, timeout: Duration,
+                           _ send: (String, @escaping (Result<T, Error>) -> Void) -> Void) async throws -> T {
         let id = UUID().uuidString
-        let relay = self.relay
         return try await withCheckedThrowingContinuation { continuation in
             let once = ResumeOnce(continuation)
             send(id) { once.resume($0) }
             Task { @MainActor in
-                try? await Task.sleep(for: Self.timeout)
+                try? await Task.sleep(for: timeout)
                 relay.cancelFSRequest(id)
                 once.resume(.failure(FSClientError.timeout))
             }

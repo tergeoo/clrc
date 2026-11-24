@@ -50,8 +50,16 @@ struct ReportCardView: View {
 
     private var files: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(ru(report.changedFiles.count, one: "файл изменён", few: "файла изменено", many: "файлов изменено"))
-                .font(.system(size: 13, weight: .semibold))
+            HStack {
+                Text(ru(report.changedFiles.count, one: "файл изменён", few: "файла изменено", many: "файлов изменено"))
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button { actions.openDiff(report.changedFiles) } label: {
+                    Text("Diff ›").font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(Palette.tint)
+                .frame(minHeight: 32)
+            }
             let shown = showAllFiles ? report.changedFiles : Array(report.changedFiles.prefix(Self.visibleFiles))
             ForEach(shown, id: \.self) { path in
                 Text(path).font(.system(size: 12, design: .monospaced)).foregroundStyle(Palette.sec).lineLimit(1)

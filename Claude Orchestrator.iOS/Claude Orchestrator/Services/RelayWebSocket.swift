@@ -250,7 +250,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
                 pendingSessionListRequests.removeValue(forKey: requestID)?(infos)
             }
 
-        case "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result":
+        case "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result",
+             "git_status_result", "git_diff_result":
             if let requestID = payload["request_id"] as? String {
                 pendingFSRequests.removeValue(forKey: requestID)?(payload)
             }
@@ -440,6 +441,26 @@ final class RelayWebSocket: NSObject, ObservableObject {
         }
         sendJSON(["type": "fs_read",
                   "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
+    }
+
+    // MARK: - Git API
+
+    /// `git_status` for the project at `path`; the completion gets the raw
+    /// result payload (decoded by `GitStatusInfo`).
+    func sendGitStatus(agentID: String, path: String, requestID: String,
+                       completion: @escaping ([String: Any]) -> Void) {
+        pendingFSRequests[requestID] = completion
+        sendJSON(["type": "git_status",
+                  "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
+    }
+
+    /// `git_diff` for the project at `path`, limited to `files` when given.
+    func sendGitDiff(agentID: String, path: String, files: [String]?, requestID: String,
+                     completion: @escaping ([String: Any]) -> Void) {
+        pendingFSRequests[requestID] = completion
+        var payload: [String: Any] = ["agent_id": agentID, "request_id": requestID, "path": path]
+        if let files { payload["files"] = files }
+        sendJSON(["type": "git_diff", "payload": payload])
     }
 
     /// Forgets a file-system request that timed out, so a late reply is dropped.

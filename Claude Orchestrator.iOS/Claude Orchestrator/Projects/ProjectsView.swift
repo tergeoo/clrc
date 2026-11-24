@@ -31,8 +31,10 @@ struct ProjectsView: View {
                 }
                 .navigationDestination(for: SessionRoute.self) { SessionScreen(route: $0) }
                 .fileDestinations()
+                .diffDestinations()
         }
         .environment(\.openSessionRoute) { path.append($0) }
+        .environment(\.openDiff) { path.append($0) }
         .sheet(isPresented: $showConnectHelp) { ConnectMacSheet() }
     }
 
