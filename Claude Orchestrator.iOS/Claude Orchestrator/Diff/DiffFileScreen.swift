@@ -18,13 +18,22 @@ struct DiffFileScreen: View {
     @State var index: Int
     @Binding var viewed: Set<String>
 
+    /// Discussion notes per line key ("n<new>"/"o<old>"), e.g. GitLab.
+    var lineNotes: ((DiffFile) -> [String: [LineNote]])?
+    /// Long-press on a line (e.g. «комментарий к строке»).
+    var onLongPressLine: ((DiffFile, DiffLine) -> Void)?
+
     @State private var wrap = true
     @State private var hunkIndex = 0
 
-    init(files: [DiffFile], index: Int, viewed: Binding<Set<String>>) {
+    init(files: [DiffFile], index: Int, viewed: Binding<Set<String>>,
+         lineNotes: ((DiffFile) -> [String: [LineNote]])? = nil,
+         onLongPressLine: ((DiffFile, DiffLine) -> Void)? = nil) {
         self.files = files
         _index = State(initialValue: index)
         _viewed = viewed
+        self.lineNotes = lineNotes
+        self.onLongPressLine = onLongPressLine
     }
 
     private var file: DiffFile { files[index] }
@@ -94,7 +103,13 @@ struct DiffFileScreen: View {
                                     .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                                     .background(DiffColors.hunk)
                             case .line(let line):
-                                row(line)
+                                if let onLongPressLine {
+                                    row(line).onLongPressGesture { onLongPressLine(file, line) }
+                                } else {
+                                    row(line)
+                                }
+                            case .notes(let notes):
+                                NotesBlock(notes: notes)
                             }
                         }
                     }
@@ -110,16 +125,25 @@ struct DiffFileScreen: View {
     }
 
     private struct Row: Identifiable {
-        enum Content { case header(String), line(DiffLine) }
+        enum Content { case header(String), line(DiffLine), notes([LineNote]) }
         let id: String
         let content: Content
     }
 
     /// Hunk headers get the id "hunk-<n>" so ‹ › can scroll to them.
     private var rows: [Row] {
-        file.hunks.enumerated().flatMap { h, hunk in
-            [Row(id: "hunk-\(h)", content: .header(hunk.header))]
-                + hunk.lines.enumerated().map { l, line in Row(id: "\(h)-\(l)", content: .line(line)) }
+        let notes = lineNotes?(file) ?? [:]
+        return file.hunks.enumerated().flatMap { h, hunk -> [Row] in
+            var out = [Row(id: "hunk-\(h)", content: .header(hunk.header))]
+            for (l, line) in hunk.lines.enumerated() {
+                out.append(Row(id: "\(h)-\(l)", content: .line(line)))
+                // A line's notes once, under the line they belong to.
+                let key = line.kind == .removed ? line.oldNumber.map { "o\($0)" } : line.newNumber.map { "n\($0)" }
+                if let key, let lineNotes = notes[key], !lineNotes.isEmpty {
+                    out.append(Row(id: "\(h)-\(l)-notes", content: .notes(lineNotes)))
+                }
+            }
+            return out
         }
     }
 
@@ -195,5 +219,27 @@ struct DiffFileScreen: View {
         .padding(.horizontal, 12)
         .frame(height: 52)
         .background(.bar)
+    }
+}
+
+/// Discussion notes under a diff line.
+private struct NotesBlock: View {
+    let notes: [LineNote]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(notes) { note in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.author).font(.system(size: 12, weight: .semibold))
+                    Text(note.body).font(.system(size: 13))
+                }
+            }
+        }
+        .foregroundStyle(Color(hex: 0xE6E6EB))
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: 0x2C2C35), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
     }
 }

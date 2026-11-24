@@ -10,6 +10,10 @@ struct ReviewScreen: View {
     @EnvironmentObject var sessionManager: SessionManager
     @State private var path = NavigationPath()
     @State private var source: Source = .claude
+    /// Fixture data (previews only).
+    var previewMRs: [GitLabMR]?
+    var previewMR: (GitLabMR, [GitLabDiffEntry], [GitLabDiscussion])?
+    var initialSource: Source?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -23,15 +27,19 @@ struct ReviewScreen: View {
                 .padding(.vertical, 8)
                 switch source {
                 case .claude: ClaudeReviewList()
-                case .gitlab: GitLabReviewPlaceholder()
+                case .gitlab: MergeRequestList(preloaded: previewMRs)
                 }
             }
             .background(Palette.bg)
             .navigationTitle("Ревью")
             .diffDestinations()
             .fileDestinations()
+            .navigationDestination(for: MergeRequestRoute.self) { route in
+                MergeRequestScreen(route: route, preloaded: previewMR)
+            }
         }
         .environment(\.openDiff) { path.append($0) }
+        .onAppear { if let initialSource { source = initialSource } }
     }
 }
 

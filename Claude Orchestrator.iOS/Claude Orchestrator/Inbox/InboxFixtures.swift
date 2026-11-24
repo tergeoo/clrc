@@ -100,6 +100,8 @@ struct DesignPreviewRoot: View {
     var body: some View {
         if state == "newtask" || state == "newtaskdanger" {
             NewTaskPreviewHost(danger: state == "newtaskdanger")
+        } else if GitLabPreviewHost.states.contains(state) {
+            GitLabPreviewHost(state: state)
         } else if DiffPreviewHost.states.contains(state) {
             DiffPreviewHost(state: state)
         } else if state.hasPrefix("onboarding") {
