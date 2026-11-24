@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.bg }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ dark }}" hint-size="100%,54px"></dc-import>
+  <div style="height:{{ headH }};flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;border-bottom:0.5px solid {{ c.sep }}">
+    <div onClick="{{ goInbox }}" style="width:36px;height:{{ headH }};display:flex;align-items:center;justify-content:center;color:{{ c.tint }};font-size:30px;font-weight:300;cursor:pointer">‹</div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:{{ headDir }};align-items:{{ headAlign }};gap:{{ headGap }}">
+      <div style="font-size:16px;font-weight:600">api</div>
+      <div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">{{ headSub }}</div>
+    </div>
+    <sc-if value="{{ isWorking }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:12px;background:{{ c.bT }};color:{{ c.tint }};font-size:12px;font-weight:600"><div style="width:6px;height:6px;border-radius:3px;background:currentColor"></div>работает</div></sc-if>
+    <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:4px;background:#34C759"></div></div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:12px 16px;gap:10px">
+    <div style="text-align:center;font-size:12px;color:{{ c.meta }}">Сегодня, 9:28</div>
+    <div style="align-self:flex-end;max-width:80%;background:{{ c.tint }};color:#fff;font-size:15px;line-height:1.35;padding:9px 13px;border-radius:18px 18px 4px 18px">Переименуй users в accounts, обнови модели и сделай миграцию</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="order:{{ ordTools }};height:36px;border-radius:10px;background:{{ c.card }};display:flex;align-items:center;gap:8px;padding:0 12px;font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}"><span style="color:{{ c.text }};font-weight:600">7 действий</span><span>Read ×3 · Edit ×2 · Bash ×2</span><span style="margin-left:auto;font-size:15px">›</span></div>
+      <sc-if value="{{ showText }}" hint-placeholder-val="{{ true }}">
+        <div style="order:2;display:flex;flex-direction:column;gap:8px;font-size:15px;line-height:1.45">
+          <div style="text-wrap:pretty">Переименовал таблицу и обновил три модели. Миграция обратимая — <code style="font:13px ui-monospace,'SF Mono',Menlo,monospace;background:{{ c.fill }};padding:1px 5px;border-radius:4px">down</code> возвращает старое имя и индексы.</div>
+          <div style="background:#1C1C21;border-radius:10px;padding:10px 12px;font:12px/1.55 ui-monospace,'SF Mono',Menlo,monospace;color:#E6E6EA;position:relative;white-space:pre">
+            <div style="position:absolute;right:10px;top:8px;font:600 11px -apple-system,system-ui,sans-serif;color:#9A9AA2">SQL · Копировать</div>
+            <div><span style="color:#FC5FA3">ALTER TABLE</span> users</div>
+            <div>  <span style="color:#FC5FA3">RENAME TO</span> accounts;</div>
+            <div><span style="color:#FC5FA3">ALTER INDEX</span> users_email_idx</div>
+            <div>  <span style="color:#FC5FA3">RENAME TO</span> accounts_email_idx;</div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showDetails }}" hint-placeholder-val="{{ false }}">
+        <div style="order:3;height:40px;border-radius:10px;border:0.5px solid {{ c.sep }};display:flex;align-items:center;padding:0 12px;font-size:14px;color:{{ c.sec }}">Подробности ответа · 2 абзаца, SQL<span style="margin-left:auto;font-size:17px;color:{{ c.meta }}">›</span></div>
+      </sc-if>
+      <sc-if value="{{ showCard }}" hint-placeholder-val="{{ true }}">
+        <div style="order:{{ ordCard }};background:{{ c.card }};border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 2px rgba(0,0,0,.06)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:22px;height:22px;border-radius:11px;background:#FF9500;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">?</div>
+            <div style="font-size:13px;font-weight:600;color:{{ c.orange }}">Ждёт ответа</div>
+            <div style="margin-left:auto;font:11px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">$0.42 · 3:12</div>
+          </div>
+          <div style="font-size:18px;font-weight:700;line-height:1.25">Миграция users → accounts готова</div>
+          <div style="font-size:15px;line-height:1.4;color:{{ c.sec }};text-wrap:pretty">Модели обновлены, миграция обратимая. Запустить на staging или сначала показать SQL целиком?</div>
+          <div onClick="{{ goDiff }}" style="background:{{ c.bg }};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;cursor:pointer">
+            <div style="display:flex;align-items:center;font-size:14px;font-weight:600">4 файла · <span style="color:{{ c.green }};margin:0 4px">+86</span><span style="color:{{ c.red }}">−31</span><span style="margin-left:auto;color:{{ c.tint }}">Diff ›</span></div>
+            <div style="font:12px/1.5 ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.sec }}">db/migrations/0042_accounts.sql<br>models/account.go · models/user.go<br><span style="color:{{ c.meta }}">+ ещё 1</span></div>
+          </div>
+          <div style="font-size:14px;line-height:1.45;color:{{ c.meta }}">Дальше: прогнать миграцию на staging, обновить fixtures</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div onClick="{{ ans1 }}" style="height:46px;border-radius:12px;background:{{ c.oT }};color:{{ c.orange }};font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer"><span style="font:600 13px ui-monospace,'SF Mono',Menlo,monospace;opacity:.7">1</span>Запусти на staging</div>
+            <div onClick="{{ ans2 }}" style="height:46px;border-radius:12px;background:{{ c.oT }};color:{{ c.orange }};font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer"><span style="font:600 13px ui-monospace,'SF Mono',Menlo,monospace;opacity:.7">2</span>Сначала покажи SQL</div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+        <div style="order:5;background:{{ c.card }};border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:22px;height:22px;border-radius:11px;background:#FF3B30;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center">!</div><div style="font-size:13px;font-weight:600;color:{{ c.red }}">Ход прерван</div><div style="margin-left:auto;font:11px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">$0.61 · 4:40</div></div>
+          <div style="font-size:18px;font-weight:700">Превышен лимит контекста</div>
+          <div style="font-size:15px;line-height:1.4;color:{{ c.sec }}">Claude остановился на 9-м действии. Изменения в 2 файлах сохранены на диске.</div>
+          <div style="display:flex;gap:8px"><div style="flex:1;height:44px;border-radius:12px;background:{{ c.rT }};color:{{ c.red }};font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center">Повторить</div><div style="flex:1.4;height:44px;border-radius:12px;background:{{ c.fill }};font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center">Сжать и продолжить</div></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ hasSent }}" hint-placeholder-val="{{ false }}">
+        <div style="order:6;align-self:flex-end;max-width:80%;background:{{ c.tint }};color:#fff;font-size:15px;line-height:1.35;padding:9px 13px;border-radius:18px 18px 4px 18px">{{ sent }}</div>
+      </sc-if>
+      <sc-if value="{{ isWorking }}" hint-placeholder-val="{{ false }}">
+        <div style="order:7;background:{{ c.card }};border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+          <div style="width:22px;height:22px;border-radius:11px;border:2px solid {{ c.tint }};box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex:none"><div style="width:8px;height:8px;border-radius:4px;background:{{ c.tint }}"></div></div>
+          <div style="flex:1;min-width:0"><div style="font:13px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.tint }}">{{ workTool }}</div><div style="font-size:12px;color:{{ c.meta }};margin-top:2px">Ход 2 · 3 действия</div></div>
+          <div style="font:500 13px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">0:18</div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ readMode }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;background:{{ c.bar }};border-top:0.5px solid {{ c.sep }};padding:10px 0 34px;display:flex;flex-direction:column;gap:10px;backdrop-filter:blur(20px)">
+      <sc-if value="{{ isPinned }}" hint-placeholder-val="{{ false }}">
+        <div style="margin:0 12px;padding:10px 12px;border-radius:14px;background:{{ c.card }};display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;border-radius:10px;background:#FF9500;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none">?</div><div style="font-size:15px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Миграция готова — запускать?</div><div onClick="{{ goDiff }}" style="font-size:13px;font-weight:600;color:{{ c.tint }};flex:none;cursor:pointer">4 файла ›</div></div>
+          <div style="display:flex;gap:8px"><div onClick="{{ ans1 }}" style="flex:1;height:44px;border-radius:10px;background:{{ c.oT }};color:{{ c.orange }};font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer">Запусти на staging</div><div onClick="{{ ans2 }}" style="flex:1;height:44px;border-radius:10px;background:{{ c.oT }};color:{{ c.orange }};font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer">Покажи SQL</div></div>
+        </div>
+      </sc-if>
+      <div style="display:flex;gap:8px;padding:0 12px;overflow:hidden">
+        <sc-for list="{{ chips }}" as="ch" hint-placeholder-count="5">
+          <div onClick="{{ ch.tap }}" style="flex:none;height:34px;padding:0 14px;border-radius:17px;background:{{ c.card }};border:0.5px solid {{ c.sep }};font-size:15px;display:flex;align-items:center;cursor:pointer">{{ ch.t }}</div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 12px;align-items:center">
+        <div onClick="{{ openKb }}" style="flex:1;height:40px;border-radius:20px;background:{{ c.fill }};color:{{ c.meta }};font-size:16px;display:flex;align-items:center;padding:0 16px;cursor:text">Ответить…</div>
+        <div style="width:40px;height:40px;border-radius:20px;background:{{ c.bT }};color:{{ c.tint }};display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px"><div style="width:9px;height:14px;border-radius:5px;background:currentColor"></div><div style="width:2px;height:3px;background:currentColor"></div></div>
+        <sc-if value="{{ isWorking }}" hint-placeholder-val="{{ false }}"><div style="width:40px;height:40px;border-radius:20px;background:{{ c.rT }};display:flex;align-items:center;justify-content:center"><div style="width:12px;height:12px;border-radius:2px;background:{{ c.red }}"></div></div></sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ kbMode }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;background:{{ c.bar }};border-top:0.5px solid {{ c.sep }};padding:7px 8px;display:flex;gap:6px;align-items:flex-end">
+      <div onClick="{{ closeKb }}" style="width:34px;height:34px;border-radius:17px;background:{{ c.fill }};color:{{ c.sec }};display:flex;align-items:center;justify-content:center;font-size:14px;flex:none;cursor:pointer">⌄</div>
+      <div style="width:34px;height:34px;border-radius:17px;background:{{ c.fill }};color:{{ c.sec }};display:flex;align-items:center;justify-content:center;font-size:20px;flex:none">＋</div>
+      <div style="flex:1;min-width:0;min-height:34px;border-radius:17px;background:{{ c.card }};border:0.5px solid {{ c.sep }};padding:7px 12px;box-sizing:border-box;font-size:16px;line-height:1.3">Запусти, но сначала сделай бэкап таблицы users<span style="display:inline-block;width:2px;height:18px;background:{{ c.tint }};vertical-align:-3px;margin-left:1px"></span></div>
+      <div onClick="{{ sendTyped }}" style="width:34px;height:34px;border-radius:17px;background:{{ c.tint }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex:none;cursor:pointer">↑</div>
+    </div>
+    <dc-import name="Keyboard" dark="{{ dark }}" hint-size="100%,336px"></dc-import>
+  </sc-if>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;chat&quot;,&quot;brief&quot;,&quot;pinned&quot;],&quot;default&quot;:&quot;chat&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;keyboard&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;idle&quot;,&quot;working&quot;,&quot;error&quot;],&quot;default&quot;:&quot;idle&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { kb: null, sent: null };
+  pal(d) {
+    return d ? { bg:'#000',card:'#1C1C1E',text:'#fff',sec:'#C7C7CC',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',fill:'#2C2C2E',bar:'rgba(22,22,24,.94)',tint:'#0A84FF',green:'#30D158',orange:'#FF9F0A',red:'#FF453A',oT:'rgba(255,159,10,.2)',rT:'rgba(255,69,58,.2)',bT:'rgba(10,132,255,.2)',home:'#fff' }
+             : { bg:'#F2F2F7',card:'#fff',text:'#000',sec:'#3C3C43',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',fill:'#E5E5EA',bar:'rgba(249,249,249,.94)',tint:'#007AFF',green:'#248A3D',orange:'#C93400',red:'#D70015',oT:'#FFF0DE',rT:'#FFE9E8',bT:'#E3EEFF',home:'#000' };
+  }
+  send(t) { this.setState({ sent: t, kb: false }); }
+  renderVals() {
+    const p = this.props, d = !!p.dark, c = this.pal(d), v = p.variant ?? 'chat';
+    const kb = this.state.kb ?? !!p.keyboard;
+    const sent = this.state.sent;
+    const st = sent ? 'working' : (p.state ?? 'idle');
+    const err = st === 'error', working = st === 'working';
+    const nav = k => () => p.onNav && p.onNav(k);
+    const chipT = ['Продолжай','Да','Нет','Покажи diff','Запусти тесты','Закоммить'];
+    return {
+      c, dark: d,
+      headH: kb ? '32px' : '44px', headDir: kb ? 'row' : 'column', headAlign: kb ? 'baseline' : 'center', headGap: kb ? '8px' : '0',
+      headSub: kb ? (v === 'brief' ? 'Brief' : 'Chat') : `~/dev/api · ${v === 'brief' ? 'Brief' : 'Chat'} ▾`,
+      isWorking: working, isError: err,
+      showText: v !== 'brief', showDetails: v === 'brief' && !err,
+      showCard: v !== 'pinned' && !err && !(kb && false),
+      ordCard: v === 'brief' ? 1 : 4, ordTools: v === 'brief' ? 2 : 1,
+      isPinned: v === 'pinned' && !err && !sent,
+      hasSent: !!sent, sent, workTool: sent && sent.includes('SQL') ? 'Read db/migrations/0042…' : 'Bash: pg_dump users > backup.sql',
+      readMode: !kb, kbMode: kb,
+      chips: chipT.map(t => ({ t, tap: t === 'Покажи diff' ? nav('diff') : () => this.send(t) })),
+      openKb: () => this.setState({ kb: true }), closeKb: () => this.setState({ kb: false }),
+      sendTyped: () => this.send('Запусти, но сначала сделай бэкап таблицы users'),
+      ans1: () => this.send('Запусти на staging'), ans2: () => this.send('Сначала покажи SQL'),
+      goInbox: nav('inbox'), goDiff: nav('diff')
+    };
+  }
+}
+</script>
+</body>
+</html>

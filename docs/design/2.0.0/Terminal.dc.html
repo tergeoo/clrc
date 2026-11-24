@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:#1C1C21;color:#E6E6EA;font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ true }}" hint-size="100%,54px"></dc-import>
+  <div style="height:{{ headH }};flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 6px;border-bottom:0.5px solid #3A3A40">
+    <div onClick="{{ back }}" style="width:36px;height:100%;display:flex;align-items:center;justify-content:center;color:#0A84FF;font-size:30px;font-weight:300;cursor:pointer">‹</div>
+    <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px"><span style="font-size:16px;font-weight:600">zsh · mbp-work</span><span style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#8E8E93">~/dev/clrc</span></div>
+    <div style="height:26px;padding:0 9px;border-radius:13px;background:#2C2C32;font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#AEAEB2;display:flex;align-items:center">13pt</div>
+  </div>
+  <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:8px 10px;font:13px/1.45 ui-monospace,'SF Mono',Menlo,monospace;white-space:pre-wrap;word-break:break-all;position:relative">
+    <div><span style="color:#5AC8FA">~/dev/clrc</span> <span style="color:#8E8E93">(feat/structured-output)</span> $ git status</div>
+    <div>On branch feat/structured-output</div>
+    <div>Changes not staged for commit:</div>
+    <div>  <span style="color:#FF6961">modified:   <span style="text-decoration:underline;text-underline-offset:2px">agent/report.go</span></span></div>
+    <div>  <span style="color:#FF6961">modified:   <span style="text-decoration:underline;text-underline-offset:2px">ios/Chat/ChatReportViews.swift</span></span></div>
+    <div>Untracked files:</div>
+    <div>  <span style="color:#FF6961;text-decoration:underline;text-underline-offset:2px">agent/report_test.go</span></div>
+    <div> </div>
+    <div><span style="color:#5AC8FA">~/dev/clrc</span> $ make test</div>
+    <div>go test ./...</div>
+    <div><span style="color:#30D158">ok</span>   clrc/agent      2.114s</div>
+    <div><span style="color:#30D158">ok</span>   clrc/relay      0.882s</div>
+    <div><span style="color:#FF453A">FAIL</span> clrc/protocol   0.341s</div>
+    <div>  --- FAIL: TestReportDecode (0.00s)</div>
+    <div>    report_test.go:41: unexpected field "changed_files"</div>
+    <div><span style="color:#5AC8FA">~/dev/clrc</span> $ <span style="display:inline-block;width:8px;height:15px;background:#E6E6EA;vertical-align:-3px"></span></div>
+    <sc-if value="{{ reconnect }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(10,10,12,.72);display:flex;align-items:center;justify-content:center;font-family:-apple-system,system-ui,sans-serif;white-space:normal">
+        <div style="background:#2C2C32;border-radius:14px;padding:16px 20px;text-align:center;display:flex;flex-direction:column;gap:4px"><div style="font-size:16px;font-weight:600">Переподключение…</div><div style="font-size:13px;color:#AEAEB2">Ввод заблокирован до восстановления связи</div></div>
+      </div>
+    </sc-if>
+  </div>
+  <sc-if value="{{ ended }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;margin:0 10px 10px;padding:12px 14px;border-radius:12px;background:#2C2C32;display:flex;align-items:center;gap:10px"><div style="flex:1"><div style="font-size:15px;font-weight:600">Сессия завершена</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#8E8E93">exit 0 · 14:02</div></div><div style="height:36px;padding:0 14px;border-radius:18px;background:#0A84FF;color:#fff;font-weight:600;font-size:15px;display:flex;align-items:center">Перезапустить</div></div>
+  </sc-if>
+  <sc-if value="{{ viewMode }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;background:#26262B;border-top:0.5px solid #3A3A40;padding:8px 10px 34px;display:flex;gap:8px">
+      <div onClick="{{ openKb }}" style="flex:1.6;height:44px;border-radius:12px;background:#0A84FF;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer">⌨︎ Клавиатура</div>
+      <div style="flex:1;height:44px;border-radius:12px;background:#3A3A40;font:600 14px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center;justify-content:center;color:#FF6961">^C</div>
+      <div style="flex:.7;height:44px;border-radius:12px;background:#3A3A40;font-size:17px;display:flex;align-items:center;justify-content:center">↑</div>
+      <div style="flex:1.3;height:44px;border-radius:12px;background:#3A3A40;font-size:15px;display:flex;align-items:center;justify-content:center">Команды</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ kbMode }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;height:44px;background:#26262B;border-top:0.5px solid #3A3A40;display:flex;gap:3px;padding:5px 4px;box-sizing:border-box">
+      <sc-for list="{{ keys }}" as="k" hint-placeholder-count="12">
+        <div onClick="{{ k.tap }}" style="flex:{{ k.flex }};min-width:0;border-radius:6px;background:{{ k.bg }};color:{{ k.fg }};font:500 13px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer">{{ k.t }}</div>
+      </sc-for>
+    </div>
+    <dc-import name="Keyboard" dark="{{ true }}" layout="en" hint-size="100%,336px"></dc-import>
+  </sc-if>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;keyboard&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;reconnect&quot;,&quot;ended&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { kb: null };
+  renderVals() {
+    const p = this.props, kb = this.state.kb ?? !!p.keyboard, st = p.state ?? 'normal';
+    const keys = ['Esc','Tab','Ctrl','↑','↓','←','→','|','~','/','-','⌄'].map(t => ({
+      t, flex: ['Esc','Tab','Ctrl'].includes(t) ? 1.35 : 1,
+      bg: t === 'Ctrl' ? '#0A84FF' : t === '⌄' ? '#3A3A40' : '#4A4A50', fg: '#fff',
+      tap: t === '⌄' ? () => this.setState({ kb: false }) : () => {}
+    }));
+    return {
+      headH: kb ? '32px' : '44px', viewMode: !kb && st !== 'ended', kbMode: kb && st === 'normal', keys,
+      reconnect: st === 'reconnect', ended: st === 'ended',
+      openKb: () => this.setState({ kb: true }), back: () => p.onNav && p.onNav('inbox')
+    };
+  }
+}
+</script>
+</body>
+</html>

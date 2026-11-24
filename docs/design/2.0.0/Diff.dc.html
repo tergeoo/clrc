@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:#1C1C21;color:#E6E6EA;font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <sc-if value="{{ showStatus }}" hint-placeholder-val="{{ true }}"><dc-import name="StatusBar" dark="{{ true }}" se="{{ se }}" hint-size="100%,54px"></dc-import></sc-if>
+  <div style="height:{{ headH }};flex:none;display:flex;align-items:center;gap:8px;padding:0 {{ padR }} 0 {{ padL }}">
+    <div onClick="{{ back }}" style="width:32px;height:100%;display:flex;align-items:center;justify-content:center;color:#0A84FF;font-size:30px;font-weight:300;cursor:pointer">‹</div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:{{ headDir }};gap:{{ headGap }};align-items:{{ headAlign }}"><span style="font-size:16px;font-weight:600">session.ts</span><span style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#8E8E93">src/api · M · <span style="color:#30D158">+32</span> <span style="color:#FF6961">−18</span></span></div>
+    <div style="width:36px;height:36px;border-radius:18px;background:#2C2C32;display:flex;align-items:center;justify-content:center;font-size:16px">⌕</div>
+    <div style="width:36px;height:36px;border-radius:18px;background:#2C2C32;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600">Aa</div>
+  </div>
+  <div style="height:34px;flex:none;display:flex;align-items:center;gap:6px;padding:0 {{ padR }} 0 {{ padL2 }};border-bottom:0.5px solid #3A3A40;font-size:13px">
+    <div style="height:26px;padding:0 10px;border-radius:13px;background:rgba(10,132,255,.25);color:#64A8FF;font-weight:600;display:flex;align-items:center">Перенос ✓</div>
+    <div style="height:26px;padding:0 10px;border-radius:13px;background:#2C2C32;color:#C7C7CC;display:flex;align-items:center">{{ modeLabel }}</div>
+    <div style="flex:1"></div>
+    <div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#8E8E93">файл 3 / 12</div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;position:relative;padding:4px 10px 0 {{ codePadL }};font:{{ fs }}/{{ lh }} ui-monospace,'SF Mono',Menlo,monospace">
+    <sc-if value="{{ unified }}" hint-placeholder-val="{{ true }}">
+      <sc-for list="{{ lines }}" as="ln" hint-placeholder-count="14">
+        <sc-if value="{{ ln.isCode }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ openComment }}" style="display:grid;grid-template-columns:{{ gcols }};background:{{ ln.bg }};box-shadow:{{ ln.sel }};cursor:pointer">
+            <span style="color:#6E6E78;text-align:right;padding-right:4px">{{ ln.o }}</span>
+            <span style="color:#6E6E78;text-align:right;padding-right:4px">{{ ln.n }}</span>
+            <span style="color:{{ ln.signC }};text-align:center">{{ ln.sign }}</span>
+            <span style="white-space:pre-wrap;word-break:break-all;padding-right:6px"><sc-for list="{{ ln.segs }}" as="sg" hint-placeholder-count="1"><span style="color:{{ sg.c }};background:{{ sg.bg }};border-radius:2px">{{ sg.t }}</span></sc-for></span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ ln.isHunk }}" hint-placeholder-val="{{ false }}"><div style="padding:4px 6px;margin:6px 0 2px;background:rgba(10,132,255,.12);color:#8FB8FF;border-radius:4px;font-size:11px">{{ ln.text }}</div></sc-if>
+        <sc-if value="{{ ln.isFold }}" hint-placeholder-val="{{ false }}"><div style="height:30px;margin:4px 0;border-radius:6px;background:#26262C;color:#64A8FF;font-family:-apple-system,system-ui,sans-serif;font-size:13px;display:flex;align-items:center;justify-content:center;gap:16px"><span>⋯ 42 строки</span><span style="color:#8E8E93">+20</span><span style="color:#8E8E93">всё</span></div></sc-if>
+        <sc-if value="{{ ln.isComment }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:6px 0 6px {{ cmIndent }};background:#2C2C32;border-radius:10px;padding:10px 12px;font-family:-apple-system,system-ui,sans-serif;display:flex;flex-direction:column;gap:6px;max-width:520px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px"><div style="width:22px;height:22px;border-radius:11px;background:#5E5CE6;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">Д</div><span style="font-weight:600">@dmitry</span><span style="color:#8E8E93">1 ч</span><span style="margin-left:auto;color:#8E8E93">1 ответ</span></div>
+            <div style="font-size:14px;line-height:1.4;color:#E6E6EA">rpId лучше брать из конфига: на staging он другой.</div>
+            <div style="display:flex;gap:16px;font-size:14px;font-weight:600;color:#64A8FF"><span>Ответить</span><span>Решить</span><span style="color:#C7C7CC;font-weight:400;margin-left:auto">Спросить Claude</span></div>
+          </div>
+        </sc-if>
+      </sc-for>
+    </sc-if>
+    <sc-if value="{{ split }}" hint-placeholder-val="{{ false }}">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="14">
+        <sc-if value="{{ r.isPair }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 8px">
+            <div style="display:grid;grid-template-columns:30px 12px minmax(0,1fr);background:{{ r.l.bg }}"><span style="color:#6E6E78;text-align:right;padding-right:4px">{{ r.l.n }}</span><span style="color:{{ r.l.signC }}">{{ r.l.sign }}</span><span style="white-space:pre-wrap;word-break:break-all"><sc-for list="{{ r.l.segs }}" as="sg" hint-placeholder-count="1"><span style="color:{{ sg.c }};background:{{ sg.bg }};border-radius:2px">{{ sg.t }}</span></sc-for></span></div>
+            <div style="display:grid;grid-template-columns:30px 12px minmax(0,1fr);background:{{ r.r.bg }}"><span style="color:#6E6E78;text-align:right;padding-right:4px">{{ r.r.n }}</span><span style="color:{{ r.r.signC }}">{{ r.r.sign }}</span><span style="white-space:pre-wrap;word-break:break-all"><sc-for list="{{ r.r.segs }}" as="sg" hint-placeholder-count="1"><span style="color:{{ sg.c }};background:{{ sg.bg }};border-radius:2px">{{ sg.t }}</span></sc-for></span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ r.isHunk }}" hint-placeholder-val="{{ false }}"><div style="padding:3px 6px;margin:4px 0 2px;background:rgba(10,132,255,.12);color:#8FB8FF;border-radius:4px;font-size:11px">{{ r.text }}</div></sc-if>
+        <sc-if value="{{ r.isFold }}" hint-placeholder-val="{{ false }}"><div style="height:26px;margin:3px 0;border-radius:6px;background:#26262C;color:#64A8FF;font-family:-apple-system,system-ui,sans-serif;font-size:13px;display:flex;align-items:center;justify-content:center">⋯ 42 строки</div></sc-if>
+        <sc-if value="{{ r.isComment }}" hint-placeholder-val="{{ false }}"><div style="margin:4px 0 4px 50%;background:#2C2C32;border-radius:8px;padding:6px 10px;font:13px -apple-system,system-ui,sans-serif;display:flex;gap:8px;align-items:center"><span style="font-weight:600">@dmitry</span><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#C7C7CC">rpId лучше брать из конфига: на staging он другой.</span><span style="color:#64A8FF;font-weight:600">Ответить</span></div></sc-if>
+      </sc-for>
+    </sc-if>
+    <div style="position:absolute;right:3px;top:6px;bottom:6px;width:4px;border-radius:2px;background:#2A2A30">
+      <div style="position:absolute;left:0;right:0;top:6%;height:3%;background:#FF6961"></div>
+      <div style="position:absolute;left:0;right:0;top:9%;height:10%;background:#30D158"></div>
+      <div style="position:absolute;left:0;right:0;top:22%;height:3%;background:#0A84FF"></div>
+      <div style="position:absolute;left:0;right:0;top:64%;height:4%;background:#30D158"></div>
+      <div style="position:absolute;left:-2px;right:-2px;top:2%;height:30%;border:1px solid rgba(255,255,255,.35);border-radius:3px"></div>
+    </div>
+  </div>
+
+  <sc-if value="{{ noComment }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;background:#26262B;border-top:0.5px solid #3A3A40;padding:8px {{ padR }} {{ botPad }} {{ padL2 }};display:flex;gap:8px;align-items:center">
+      <div style="width:44px;height:44px;border-radius:12px;background:#3A3A40;display:flex;align-items:center;justify-content:center;font-size:20px">‹</div>
+      <div style="font:13px ui-monospace,'SF Mono',Menlo,monospace;color:#C7C7CC;min-width:52px;text-align:center">ханк 2/5</div>
+      <div style="width:44px;height:44px;border-radius:12px;background:#3A3A40;display:flex;align-items:center;justify-content:center;font-size:20px">›</div>
+      <div style="flex:1"></div>
+      <div style="height:44px;padding:0 12px;border-radius:12px;background:#3A3A40;font-size:15px;display:flex;align-items:center">Просмотрен</div>
+      <div style="height:44px;padding:0 12px;border-radius:12px;background:#0A84FF;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;cursor:pointer">Файл ›</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ comment }}" hint-placeholder-val="{{ false }}">
+    <div style="flex:none;background:#2C2C2E;border-radius:12px 12px 0 0;margin-top:-8px;padding:6px 12px 10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 -6px 20px rgba(0,0,0,.4)">
+      <div style="width:36px;height:5px;border-radius:3px;background:#5A5A5E;margin:0 auto"></div>
+      <div style="display:flex;align-items:center;font-size:16px"><span onClick="{{ closeComment }}" style="color:#0A84FF;cursor:pointer">Отмена</span><span style="flex:1;text-align:center;font-weight:600">Строка 45</span><span style="color:#0A84FF;font-weight:600">Отправить</span></div>
+      <div style="background:#1C1C21;border-radius:8px;padding:6px 8px;font:12px/1.5 ui-monospace,'SF Mono',Menlo,monospace;color:#C7C7CC"><span style="color:#6E6E78">44 </span>   origin: env.WEB_ORIGIN,<br><span style="color:#6E6E78">45 </span><span style="background:rgba(48,209,88,.25)">   rpId: env.RP_ID,</span></div>
+      <div style="min-height:40px;border-radius:10px;background:#3A3A3C;padding:9px 12px;box-sizing:border-box;font-size:16px;line-height:1.3">Почему не через WebAuthn-хелпер из shared/auth?<span style="display:inline-block;width:2px;height:18px;background:#0A84FF;vertical-align:-3px;margin-left:1px"></span></div>
+      <div style="display:flex;gap:8px;font-size:14px"><div style="height:32px;padding:0 12px;border-radius:16px;background:#3A3A3C;display:flex;align-items:center">Предложить правку</div><div style="height:32px;padding:0 12px;border-radius:16px;background:#3A3A3C;display:flex;align-items:center">Спросить Claude</div></div>
+    </div>
+    <dc-import name="Keyboard" dark="{{ true }}" hint-size="100%,336px"></dc-import>
+  </sc-if>
+  <sc-if value="{{ homeInd }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#fff"></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;orientation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;portrait&quot;,&quot;landscape&quot;],&quot;default&quot;:&quot;portrait&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;max&quot;,&quot;se&quot;],&quot;default&quot;:&quot;max&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;comment&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { comment: null };
+  renderVals() {
+    const p = this.props, land = p.orientation === 'landscape', se = p.device === 'se';
+    const comment = (this.state.comment ?? !!p.comment) && !land;
+    const col = { k:'#FC5FA3', s:'#FF8170', f:'#67B7A4', d:'#E6E6EA' };
+    const BG = { del:'rgba(255,69,58,.16)', add:'rgba(48,209,88,.14)', ctx:'transparent' };
+    const WB = { del:'rgba(255,69,58,.5)', add:'rgba(48,209,88,.42)', ctx:'transparent' };
+    const SG = { del:['−','#FF6961'], add:['+','#30D158'], ctx:[' ','#6E6E78'] };
+    const segs = (arr, kind) => arr.map(x => { const [t, cl = ''] = typeof x === 'string' ? [x] : x; return { t, c: cl.includes('k') ? col.k : cl.includes('s') ? col.s : cl.includes('f') ? col.f : col.d, bg: cl.includes('w') ? WB[kind] : 'transparent' }; });
+    const raw = [
+      ['hunk','@@ -40,12 +40,19 @@ createSession'],
+      ['ctx',40,40,[['export async function','k'],[' createSession','f'],'(req: Request) {']],
+      ['del',41,'',['  ',['const','k'],' token = req.headers.get(',['"x-token"','sw'],');']],
+      ['add','',41,['  ',['const','k'],' token = req.headers.get(',['"authorization"','sw'],')',['?.slice(7)','w'],';']],
+      ['ctx',42,42,['  ',['if','k'],' (!token) ',['return','k'],' unauthorized();']],
+      ['add','',43,['  ',['const','k'],' passkey = ',['await','k'],[' verifyPasskey','f'],'(token, {']],
+      ['add','',44,['    origin: env.WEB_ORIGIN,']],
+      ['add','',45,['    rpId: env.RP_ID,'],'sel'],
+      ['add','',46,['  });']],
+      ['comment'],
+      ['del',43,'',['  ',['const','k'],' user = ',['await','k'],' db.',['users','w'],'.find(',['token','w'],');']],
+      ['add','',47,['  ',['const','k'],' user = ',['await','k'],' db.',['accounts','w'],'.find(',['passkey.userId','w'],');']],
+      ['ctx',44,48,['  ',['return','k'],' json(issue(user));']],
+      ['ctx',45,49,['}']],
+      ['fold'],
+      ['hunk','@@ -88,6 +94,9 @@ revokeSession'],
+      ['ctx',88,94,[['export function','k'],[' revokeSession','f'],'(id: string) {']],
+      ['add','',95,['  audit.log(',['"session.revoke"','s'],', { id });']],
+      ['ctx',89,96,['  ',['return','k'],' db.sessions.delete(id);']],
+      ['ctx',90,97,['}']]
+    ];
+    const isCode = k => ['ctx','del','add'].includes(k);
+    const lines = raw.map(([k, o, n, s, flag]) => isCode(k)
+      ? { isCode: true, o, n, sign: SG[k][0], signC: SG[k][1], bg: BG[k], segs: segs(s, k), sel: comment && flag === 'sel' ? 'inset 0 0 0 1.5px #0A84FF' : 'none' }
+      : { isCode: false, isHunk: k === 'hunk', isFold: k === 'fold', isComment: k === 'comment', text: o });
+    const side = (k, n, s) => ({ n, sign: SG[k][0], signC: SG[k][1], bg: BG[k], segs: segs(s, k) });
+    const blank = { n: '', sign: '', signC: '#6E6E78', bg: 'rgba(255,255,255,.03)', segs: [] };
+    const rows = []; let pend = [];
+    const flush = () => { pend.forEach(dl => rows.push({ isPair: true, l: dl, r: blank })); pend = []; };
+    raw.forEach(([k, o, n, s]) => {
+      if (k === 'del') pend.push(side('del', o, s));
+      else if (k === 'add') rows.push({ isPair: true, l: pend.length ? pend.shift() : blank, r: side('add', n, s) });
+      else { flush(); if (k === 'ctx') rows.push({ isPair: true, l: side('ctx', o, s), r: side('ctx', n, s) }); else rows.push({ isPair: false, isHunk: k === 'hunk', isFold: k === 'fold', isComment: k === 'comment', text: o }); }
+    });
+    flush();
+    return {
+      se, showStatus: !land, unified: !land, split: land, lines, rows, comment, noComment: !comment,
+      headH: land ? '40px' : '44px', headDir: land ? 'row' : 'column', headGap: land ? '10px' : '0', headAlign: land ? 'baseline' : 'flex-start',
+      padL: land ? '48px' : '4px', padL2: land ? '56px' : '12px', padR: land ? '48px' : '12px', codePadL: land ? '50px' : '2px',
+      botPad: land ? '16px' : se ? '8px' : '34px', homeInd: !se,
+      gcols: se ? '24px 24px 12px minmax(0,1fr)' : '28px 28px 12px minmax(0,1fr)', cmIndent: se ? '24px' : '40px',
+      fs: se ? '11.5px' : '12px', lh: se ? '17px' : '18px',
+      modeLabel: land ? 'Split' : 'Unified',
+      back: () => p.onNav && p.onNav('mr'),
+      openComment: () => this.setState({ comment: true }), closeComment: () => this.setState({ comment: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

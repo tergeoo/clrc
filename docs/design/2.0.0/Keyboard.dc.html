@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:{{ height }};flex:none;width:100%;background:{{ bg }};padding:8px 3px 0;box-sizing:border-box;display:flex;flex-direction:column;gap:{{ gap }};font-family:-apple-system,'SF Pro Text',system-ui,sans-serif">
+  <div style="display:flex;gap:5px;padding:0 {{ p1 }}"><sc-for list="{{ r1 }}" as="k" hint-placeholder-count="11"><div style="flex:1;height:{{ kh }};background:{{ key }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:21px">{{ k }}</div></sc-for></div>
+  <div style="display:flex;gap:5px;padding:0 {{ p2 }}"><sc-for list="{{ r2 }}" as="k" hint-placeholder-count="11"><div style="flex:1;height:{{ kh }};background:{{ key }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:21px">{{ k }}</div></sc-for></div>
+  <div style="display:flex;gap:5px">
+    <div style="width:42px;flex:none;height:{{ kh }};background:{{ spec }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:18px">⇧</div>
+    <div style="flex:1;display:flex;gap:5px;padding:0 {{ p3 }}"><sc-for list="{{ r3 }}" as="k" hint-placeholder-count="9"><div style="flex:1;height:{{ kh }};background:{{ key }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:21px">{{ k }}</div></sc-for></div>
+    <div style="width:42px;flex:none;height:{{ kh }};background:{{ spec }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:18px">⌫</div>
+  </div>
+  <div style="display:flex;gap:5px">
+    <div style="width:88px;flex:none;height:{{ kh }};background:{{ spec }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:16px">123</div>
+    <div style="flex:1;height:{{ kh }};background:{{ key }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:16px">{{ space }}</div>
+    <div style="width:88px;flex:none;height:{{ kh }};background:{{ spec }};color:{{ fg }};border-radius:5px;box-shadow:0 1px 0 rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:16px">{{ ret }}</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:336},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ru&quot;,&quot;en&quot;],&quot;default&quot;:&quot;ru&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;landscape&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const d = !!this.props.dark, en = this.props.layout === 'en', land = !!this.props.landscape;
+    return {
+      bg: d ? '#1F1F21' : '#D1D4DA', key: d ? '#6B6B6F' : '#FFFFFF', spec: d ? '#464649' : '#ACB1BA', fg: d ? '#fff' : '#000',
+      r1: en ? 'qwertyuiop'.split('') : 'йцукенгшщзх'.split(''),
+      r2: en ? 'asdfghjkl'.split('') : 'фывапролджэ'.split(''),
+      r3: en ? 'zxcvbnm'.split('') : 'ячсмитьбю'.split(''),
+      p1: '0', p2: en ? '18px' : '0', p3: en ? '12px' : '0',
+      space: en ? 'space' : 'Пробел', ret: en ? 'return' : 'Ввод',
+      height: land ? '200px' : '336px', kh: land ? '34px' : '42px', gap: land ? '7px' : '11px'
+    };
+  }
+}
+</script>
+</body>
+</html>

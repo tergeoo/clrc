@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:83px;width:100%;background:{{ bg }};backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:0.5px solid {{ sep }};display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding-top:7px;box-sizing:border-box;font-family:-apple-system,'SF Pro Text',system-ui,sans-serif">
+  <sc-for list="{{ items }}" as="it" hint-placeholder-count="4">
+    <div onClick="{{ it.tap }}" style="display:flex;flex-direction:column;align-items:center;gap:5px;color:{{ it.color }};font-size:10px;font-weight:500;position:relative;cursor:pointer;height:44px">
+      <div style="height:24px;display:flex;align-items:center;justify-content:center"><div style="width:{{ it.w }}px;height:{{ it.h }}px;border:2px solid currentColor;border-radius:{{ it.r }};transform:rotate({{ it.rot }}deg);box-sizing:border-box;background:{{ it.fill }}"></div></div>
+      <span>{{ it.l }}</span>
+      <sc-if value="{{ it.hasBadge }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-3px;left:55%;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:9px;background:#FF3B30;color:#fff;font:600 12px/18px -apple-system,system-ui,sans-serif;text-align:center">{{ it.badge }}</div></sc-if>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:83},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;inbox&quot;,&quot;review&quot;,&quot;projects&quot;,&quot;settings&quot;],&quot;default&quot;:&quot;inbox&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;inboxBadge&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;tsType&quot;:&quot;number&quot;},&quot;reviewBadge&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;},&quot;onTab&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const d = !!this.props.dark, a = this.props.active ?? 'inbox', tint = d ? '#0A84FF' : '#007AFF', off = d ? '#8E8E93' : '#8A8A8E';
+    const defs = [['inbox','Входящие',22,18,'5px',0],['review','Ревью',15,15,'3px',45],['projects','Проекты',22,17,'3px',0],['settings','Настройки',20,20,'50%',0]];
+    const badges = { inbox: this.props.inboxBadge, review: this.props.reviewBadge };
+    return {
+      bg: d ? 'rgba(22,22,24,.94)' : 'rgba(249,249,249,.94)',
+      sep: d ? 'rgba(84,84,88,.6)' : 'rgba(60,60,67,.29)',
+      items: defs.map(([k,l,w,h,r,rot]) => ({ k, l, w, h, r, rot, color: k === a ? tint : off, fill: k === a ? 'currentColor' : 'transparent', badge: badges[k], hasBadge: !!badges[k], tap: () => this.props.onTab && this.props.onTab(k) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

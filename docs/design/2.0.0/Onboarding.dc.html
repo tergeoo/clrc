@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.bg }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ dark }}" hint-size="100%,54px"></dc-import>
+  <sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:0 32px;text-align:center">
+      <div style="width:96px;height:96px;border-radius:22px;background:#1C1C21;color:#fff;font:700 24px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.18)">clrc</div>
+      <div style="font-size:34px;font-weight:700;margin-top:8px">clrc</div>
+      <div style="font-size:17px;line-height:1.4;color:{{ c.sec }};max-width:280px;text-wrap:pretty">Управляйте Claude Code на своём Маке с iPhone</div>
+    </div>
+    <div style="flex:none;padding:0 20px 48px;display:flex;flex-direction:column;align-items:center;gap:12px">
+      <div onClick="{{ done }}" style="align-self:stretch;height:54px;border-radius:14px;background:{{ c.tint }};color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer">Сканировать QR с Мака</div>
+      <div style="font-size:13px;color:{{ c.meta }}">На Маке выполните <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.text }}">clrc pair</span></div>
+      <div onClick="{{ manual }}" style="font-size:16px;color:{{ c.tint }};height:44px;display:flex;align-items:center;cursor:pointer">Ввести вручную</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isManual }}" hint-placeholder-val="{{ false }}">
+    <div style="height:44px;flex:none;display:flex;align-items:center;padding:0 6px"><div onClick="{{ back }}" style="color:{{ c.tint }};font-size:17px;display:flex;align-items:center;gap:2px;padding:0 8px;height:44px;cursor:pointer"><span style="font-size:28px;font-weight:300">‹</span>Назад</div></div>
+    <div style="flex:1;min-height:0;padding:4px 20px 0;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:28px;font-weight:700">Подключение вручную</div>
+      <div style="font-size:15px;color:{{ c.sec }};margin-bottom:6px">Адрес relay и пароль из <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace">clrc pair --manual</span></div>
+      <div style="font-size:13px;color:{{ c.meta }};padding-left:4px">Relay URL</div>
+      <div style="height:48px;border-radius:12px;background:{{ c.card }};border:{{ urlBorder }};box-sizing:border-box;display:flex;align-items:center;padding:0 14px;font:16px ui-monospace,'SF Mono',Menlo,monospace">https://relay.home.lan<sc-if value="{{ kb }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;width:2px;height:20px;background:{{ c.tint }};margin-left:1px"></span></sc-if></div>
+      <div style="font-size:13px;color:{{ c.meta }};padding:4px 0 0 4px">Пароль</div>
+      <div style="height:48px;border-radius:12px;background:{{ c.card }};border:{{ pwBorder }};box-sizing:border-box;display:flex;align-items:center;padding:0 14px;font-size:20px;letter-spacing:3px">••••••••••</div>
+      <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:{{ c.red }};padding-left:4px">Неверный пароль. Проверьте вывод <span style="font-family:ui-monospace,'SF Mono',Menlo,monospace">clrc pair</span> на Маке.</div></sc-if>
+      <sc-if value="{{ noKb }}" hint-placeholder-val="{{ false }}"><div style="flex:1"></div><div onClick="{{ done }}" style="height:54px;border-radius:14px;background:{{ c.tint }};color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-bottom:48px;cursor:pointer">Войти</div></sc-if>
+    </div>
+    <sc-if value="{{ kb }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:none;padding:8px 12px;background:{{ c.bar }};border-top:0.5px solid {{ c.sep }};display:flex;justify-content:flex-end"><div onClick="{{ done }}" style="height:40px;padding:0 24px;border-radius:20px;background:{{ c.tint }};color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;cursor:pointer">Войти</div></div>
+      <dc-import name="Keyboard" dark="{{ dark }}" layout="en" hint-size="100%,336px"></dc-import>
+    </sc-if>
+  </sc-if>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;start&quot;,&quot;manual&quot;,&quot;error&quot;],&quot;default&quot;:&quot;start&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { st: null };
+  renderVals() {
+    const p = this.props, d = !!p.dark, st = this.state.st ?? (p.state ?? 'start');
+    const c = d ? { bg:'#000',card:'#1C1C1E',text:'#fff',sec:'#C7C7CC',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',bar:'#161618',tint:'#0A84FF',red:'#FF453A',home:'#fff' }
+                : { bg:'#F2F2F7',card:'#fff',text:'#000',sec:'#3C3C43',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',bar:'#F7F7F9',tint:'#007AFF',red:'#D70015',home:'#000' };
+    const err = st === 'error', kb = st === 'manual';
+    return {
+      c, dark: d, isStart: st === 'start', isManual: st !== 'start', isError: err, kb, noKb: !kb,
+      urlBorder: kb ? `2px solid ${c.tint}` : `0.5px solid ${c.sep}`, pwBorder: err ? `2px solid ${c.red}` : `0.5px solid ${c.sep}`,
+      manual: () => this.setState({ st: 'manual' }), back: () => this.setState({ st: 'start' }),
+      done: () => p.onNav && p.onNav('inbox')
+    };
+  }
+}
+</script>
+</body>
+</html>

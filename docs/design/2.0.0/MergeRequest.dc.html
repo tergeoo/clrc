@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.bg }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ dark }}" hint-size="100%,54px"></dc-import>
+  <div style="height:44px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 12px 0 4px">
+    <div onClick="{{ back }}" style="color:{{ c.tint }};font-size:17px;display:flex;align-items:center;gap:2px;cursor:pointer"><span style="font-size:30px;font-weight:300;width:24px;text-align:center">‹</span>Ревью</div>
+    <div style="font-size:16px;font-weight:600;font-family:ui-monospace,'SF Mono',Menlo,monospace">{{ navTitle }}</div>
+    <div style="text-align:right;color:{{ c.tint }};font-size:20px;font-weight:700">···</div>
+  </div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:4px 16px 16px;display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:24px;font-weight:700;line-height:1.2">{{ title }}</div>
+    <div style="font-size:14px;color:{{ c.sec }}">{{ meta }}</div>
+    <sc-if value="{{ isGitlab }}" hint-placeholder-val="{{ true }}">
+      <div style="align-self:flex-start;height:26px;padding:0 10px;border-radius:7px;background:{{ c.fill }};font:12px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center">feature/passkey → main</div>
+      <div style="background:{{ c.card }};border-radius:12px;padding:0 12px;height:48px;display:flex;align-items:center;gap:10px">
+        <div style="width:22px;height:22px;border-radius:11px;background:#34C759;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">✓</div>
+        <div style="font-size:15px;font-weight:600">Pipeline пройден</div>
+        <div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">6 джобов · 4:12</div>
+        <div style="margin-left:auto;color:{{ c.meta }};font-size:18px">›</div>
+      </div>
+      <div style="background:{{ c.card }};border-radius:12px;padding:12px;font-size:15px;line-height:1.45;color:{{ c.sec }}">Вход по passkey через WebAuthn. Пароль остаётся запасным вариантом до конца квартала; OTP-код удалён. Миграция ключей — отдельным MR… <span style="color:{{ c.tint }}">Ещё</span></div>
+    </sc-if>
+    <div style="font-size:14px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:2px 2px"><span>{{ nFiles }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.green }}">+{{ plus }}</span><span style="font-family:ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.red }}">−{{ minus }}</span><sc-if value="{{ isGitlab }}" hint-placeholder-val="{{ true }}"><span style="color:{{ c.orange }}">2 открытых обсуждения</span></sc-if></div>
+    <sc-if value="{{ isGitlab }}" hint-placeholder-val="{{ true }}">
+      <div onClick="{{ askClaude }}" style="height:46px;border-radius:12px;background:{{ c.card }};border:0.5px solid {{ c.sep }};color:{{ c.tint }};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer">Попросить Claude сделать ревью</div>
+    </sc-if>
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 4px 0"><div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px">Файлы</div><div style="font-size:13px;color:{{ c.meta }}">{{ progressText }}</div><div style="flex:1;height:4px;border-radius:2px;background:{{ c.fill }};overflow:hidden"><div style="width:{{ progress }};height:100%;background:{{ c.green2 }}"></div></div></div>
+    <div style="background:{{ c.card }};border-radius:12px;overflow:hidden">
+      <sc-for list="{{ files }}" as="f" hint-placeholder-count="5">
+        <div onClick="{{ f.open }}" style="display:flex;align-items:center;gap:10px;padding:0 12px;height:52px;border-top:{{ f.border }};opacity:{{ f.op }};cursor:pointer">
+          <div style="width:22px;height:22px;border-radius:5px;background:{{ f.bbg }};color:{{ f.bfg }};font:700 12px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center;justify-content:center;flex:none">{{ f.b }}</div>
+          <div style="flex:1;min-width:0;font:13px ui-monospace,'SF Mono',Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:{{ c.meta }}">{{ f.dir }}</span>{{ f.name }}<sc-if value="{{ f.disc }}" hint-placeholder-val="{{ false }}"><div style="font:600 11px -apple-system,system-ui,sans-serif;color:{{ c.orange }};margin-top:2px">2 обсуждения</div></sc-if></div>
+          <div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;flex:none;text-align:right"><span style="color:{{ c.green }}">{{ f.plus }}</span> <span style="color:{{ c.red }}">{{ f.minus }}</span></div>
+          <div style="width:18px;flex:none;color:{{ c.green2 }};font-size:14px;font-weight:700;text-align:center">{{ f.check }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <sc-if value="{{ isGitlab }}" hint-placeholder-val="{{ true }}"><div style="font-size:13px;color:{{ c.meta }};padding:0 4px">Скрыто: lock-файлы и сгенерированное (2) · <span style="color:{{ c.tint }}">Показать</span></div></sc-if>
+  </div>
+  <div style="flex:none;background:{{ c.bar }};border-top:0.5px solid {{ c.sep }};padding:8px 12px 34px;display:flex;gap:8px">
+    <div style="flex:1.2;height:48px;border-radius:12px;background:#34C759;color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ primary }}</div>
+    <div style="flex:1.5;height:48px;border-radius:12px;background:{{ c.fill }};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ secondary }}</div>
+    <div style="width:52px;height:48px;border-radius:12px;background:{{ c.fill }};font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center">···</div>
+  </div>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;kind&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;gitlab&quot;,&quot;claude&quot;],&quot;default&quot;:&quot;gitlab&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props, d = !!p.dark, gl = (p.kind ?? 'gitlab') === 'gitlab';
+    const c = d ? { bg:'#000',card:'#1C1C1E',text:'#fff',sec:'#C7C7CC',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',fill:'#2C2C2E',bar:'rgba(22,22,24,.94)',tint:'#0A84FF',green:'#30D158',green2:'#30D158',red:'#FF453A',orange:'#FF9F0A',home:'#fff' }
+                : { bg:'#F2F2F7',card:'#fff',text:'#000',sec:'#3C3C43',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',fill:'#E3E3E8',bar:'rgba(249,249,249,.94)',tint:'#007AFF',green:'#248A3D',green2:'#34C759',red:'#D70015',orange:'#C93400',home:'#000' };
+    const B = { A: ['#34C759','#fff'], M: ['#FF9500','#fff'], D: ['#FF3B30','#fff'], R: ['#5E5CE6','#fff'] };
+    const raw = gl ? [
+      ['M','src/api/','session.ts','+32','−18',false,true],
+      ['A','src/auth/','passkey.ts','+164','',false,false],
+      ['M','src/routes/','login.tsx','+88','−21',true,false],
+      ['D','src/auth/','legacy-otp.ts','','−41',true,false],
+      ['M','','package.json','+2','−1',true,false]
+    ] : [
+      ['A','db/migrations/','0042_accounts.sql','+48','',false,false],
+      ['M','models/','account.go','+21','−9',false,false],
+      ['M','models/','user.go','+3','−17',false,false],
+      ['M','db/fixtures/','users.yml','+14','−5',false,false]
+    ];
+    const files = raw.map(([b,dir,name,plus,minus,viewed,disc], i) => ({ b, dir, name, plus, minus, disc, bbg: B[b][0], bfg: B[b][1], check: viewed ? '✓' : '', op: viewed ? .55 : 1, border: i ? `0.5px solid ${c.sep}` : 'none', open: () => p.onNav && p.onNav('diff') }));
+    return {
+      c, dark: d, isGitlab: gl, files,
+      navTitle: gl ? '!214' : 'Ход 3',
+      title: gl ? 'Passkey-логин для веба' : 'Миграция users → accounts',
+      meta: gl ? 'web · @anna · открыт 2 ч назад' : 'api · mbp-work · 2 мин назад',
+      nFiles: gl ? '12 файлов' : '4 файла', plus: gl ? 412 : 86, minus: gl ? 87 : 31,
+      progressText: gl ? '7 из 12' : '0 из 4', progress: gl ? '58%' : '0%',
+      primary: gl ? 'Approve' : 'Принять', secondary: gl ? 'Комментарий' : 'Попросить исправить',
+      back: () => p.onNav && p.onNav('review'), askClaude: () => p.onNav && p.onNav('chat')
+    };
+  }
+}
+</script>
+</body>
+</html>

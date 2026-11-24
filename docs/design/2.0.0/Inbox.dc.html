@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.bg }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ dark }}" hint-size="100%,54px"></dc-import>
+  <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+    <div style="margin:4px 16px 0;padding:10px 12px;border-radius:12px;background:{{ c.card }};display:flex;align-items:center;gap:10px;font-size:14px">
+      <div style="width:8px;height:8px;border-radius:4px;background:#FF3B30;flex:none"></div>
+      <div style="flex:1;min-width:0;line-height:1.3"><div style="font-weight:600">Нет связи с relay</div><div style="color:{{ c.meta }};font-size:13px">Показаны данные на 9:32</div></div>
+      <div style="height:32px;padding:0 12px;border-radius:16px;background:{{ c.fill }};color:{{ c.tint }};font-weight:600;font-size:14px;display:flex;align-items:center">Повторить</div>
+    </div>
+  </sc-if>
+  <div style="padding:6px 16px 10px;display:flex;flex-direction:column;gap:4px;flex:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="font-size:34px;font-weight:700;letter-spacing:.2px">Входящие</div>
+      <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;background:{{ c.card }};font-size:13px;color:{{ c.sec }}"><div style="width:7px;height:7px;border-radius:4px;background:{{ connDot }}"></div>{{ connText }}</div>
+    </div>
+    <div style="font-size:15px;color:{{ c.sec }}">{{ summaryLine }}</div>
+    <sc-if value="{{ isC }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:8px;height:32px;border-radius:9px;background:{{ c.fill }};padding:2px;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;font-size:13px;font-weight:600">
+        <div style="display:flex;align-items:center;justify-content:center;color:{{ c.sec }}">По статусу</div>
+        <div style="display:flex;align-items:center;justify-content:center;background:{{ c.card }};border-radius:7px;box-shadow:0 1px 3px rgba(0,0,0,.12)">По проектам</div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:0 16px 120px;display:flex;flex-direction:column;gap:8px">
+    <sc-if value="{{ isLoading }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-top:6px">
+        <div style="height:12px;width:110px;border-radius:6px;background:{{ c.fill }}"></div>
+        <div style="background:{{ c.card }};border-radius:12px;padding:12px;display:flex;gap:10px"><div style="width:26px;height:26px;border-radius:13px;background:{{ c.fill }};flex:none"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="height:14px;width:70%;border-radius:7px;background:{{ c.fill }}"></div><div style="height:11px;width:95%;border-radius:6px;background:{{ c.fill }}"></div><div style="height:11px;width:60%;border-radius:6px;background:{{ c.fill }}"></div><div style="display:flex;gap:8px;margin-top:4px"><div style="flex:1;height:40px;border-radius:10px;background:{{ c.fill }}"></div><div style="flex:1;height:40px;border-radius:10px;background:{{ c.fill }}"></div></div></div></div>
+        <div style="background:{{ c.card }};border-radius:12px;padding:12px;display:flex;gap:10px"><div style="width:26px;height:26px;border-radius:13px;background:{{ c.fill }};flex:none"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="height:14px;width:55%;border-radius:7px;background:{{ c.fill }}"></div><div style="height:11px;width:85%;border-radius:6px;background:{{ c.fill }}"></div></div></div>
+        <div style="background:{{ c.card }};border-radius:12px;padding:12px;display:flex;gap:10px"><div style="width:26px;height:26px;border-radius:13px;background:{{ c.fill }};flex:none"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="height:14px;width:62%;border-radius:7px;background:{{ c.fill }}"></div><div style="height:11px;width:75%;border-radius:6px;background:{{ c.fill }}"></div></div></div>
+        <div style="font-size:13px;color:{{ c.meta }};text-align:center;padding-top:6px">Получаем статус с 2 Маков…</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:18px;padding-top:40px">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+          <div style="width:56px;height:56px;border-radius:16px;border:2px dashed {{ c.meta }};box-sizing:border-box"></div>
+          <div style="font-size:22px;font-weight:700;margin-top:6px">Нет сессий</div>
+          <div style="font-size:15px;color:{{ c.sec }};max-width:260px;text-wrap:pretty">Поставьте задачу — статус всех сессий появится здесь.</div>
+          <div onClick="{{ goNew }}" style="margin-top:10px;height:50px;padding:0 26px;border-radius:25px;background:{{ c.tint }};color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;cursor:pointer">Новая задача</div>
+        </div>
+        <div style="font-size:13px;color:{{ c.meta }};padding:8px 4px 0;text-transform:uppercase;letter-spacing:.3px">Недавние проекты · запуск в 1 тап</div>
+        <div style="background:{{ c.card }};border-radius:12px;overflow:hidden">
+          <sc-for list="{{ recents }}" as="r" hint-placeholder-count="3">
+            <div onClick="{{ goNew }}" style="display:flex;align-items:center;gap:12px;padding:0 14px;height:56px;border-top:{{ r.border }};cursor:pointer">
+              <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600">{{ r.name }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">{{ r.path }}</div></div>
+              <div style="width:32px;height:32px;border-radius:16px;background:{{ c.bT }};color:{{ c.tint }};display:flex;align-items:center;justify-content:center;font-size:12px">▶</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:4px 4px 0">Ждёт вас · {{ nWait }}</div>
+      <sc-for list="{{ waiting }}" as="s" hint-placeholder-count="2">
+        <div style="background:{{ c.card }};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;opacity:{{ s.op }}">
+          <div onClick="{{ s.open }}" style="display:flex;gap:10px;cursor:pointer">
+            <div style="width:26px;height:26px;border-radius:13px;background:{{ s.icon }};color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none">{{ s.g }}</div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><div style="font-size:16px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.title }}</div><div style="font-size:13px;color:{{ c.meta }};flex:none">{{ s.ago }}</div></div>
+              <div style="font-size:14px;line-height:1.35;color:{{ c.sec }};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ s.summary }}</div>
+              <div style="display:flex;align-items:center;gap:6px;font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }};margin-top:2px"><span>{{ s.meta }}</span><div style="width:6px;height:6px;border-radius:3px;background:{{ s.ctx }}"></div></div>
+              <sc-if value="{{ s.offline }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;margin-top:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:6px;background:{{ c.fill }};color:{{ c.sec }}">mac-mini не в сети</div></sc-if>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <sc-for list="{{ s.answers }}" as="a" hint-placeholder-count="2">
+              <div onClick="{{ a.tap }}" style="flex:1;min-width:0;height:44px;border-radius:10px;background:{{ a.bg }};color:{{ a.fg }};font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 8px;text-align:center;line-height:1.15;cursor:pointer">{{ a.t }}</div>
+            </sc-for>
+            <div style="width:44px;flex:none;height:44px;border-radius:10px;background:{{ c.fill }};color:{{ c.sec }};font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center">···</div>
+          </div>
+        </div>
+      </sc-for>
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:8px 4px 0">Работает · {{ nWork }}</div>
+      <div style="background:{{ c.card }};border-radius:12px;overflow:hidden;opacity:{{ op }}">
+        <sc-for list="{{ working }}" as="w" hint-placeholder-count="2">
+          <div onClick="{{ goChat }}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:{{ w.border }};cursor:pointer">
+            <div style="width:26px;height:26px;border-radius:13px;border:2px solid {{ c.tint }};box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex:none"><div style="width:10px;height:10px;border-radius:5px;background:{{ c.tint }}"></div></div>
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.title }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.tint }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px">{{ w.tool }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }};margin-top:1px">{{ w.meta }}</div></div>
+            <div style="font:500 13px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }};flex:none">{{ w.time }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:8px 4px 0">Готово · 1</div>
+      <div onClick="{{ goChat }}" style="background:{{ c.card }};border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;opacity:{{ op }};cursor:pointer">
+        <div style="width:26px;height:26px;border-radius:13px;background:#34C759;color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none">✓</div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">Ревью MR !209 готово</div><div style="font-size:13px;color:{{ c.sec }};margin-top:2px">2 замечания: гонка в reconnect и лишний лог</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }};margin-top:2px">clrc · mbp-work · 14 мин</div></div>
+        <div style="color:{{ c.meta }};font-size:20px">›</div>
+      </div>
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:8px 4px 0">Терминалы</div>
+      <div onClick="{{ goTerm }}" style="background:{{ c.card }};border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;font:13px ui-monospace,'SF Mono',Menlo,monospace;opacity:{{ op }};cursor:pointer">
+        <div style="display:flex;justify-content:space-between"><span style="font-weight:600">zsh · mbp-work</span><span style="color:{{ c.meta }}">idle</span></div>
+        <div style="color:{{ c.meta }}">~/dev/clrc $ git status</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <sc-for list="{{ tiles }}" as="t" hint-placeholder-count="3">
+          <div style="background:{{ c.card }};border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;opacity:{{ op }}">
+            <div style="font-size:28px;font-weight:700;color:{{ t.color }};font-variant-numeric:tabular-nums">{{ t.n }}</div>
+            <div style="font-size:13px;color:{{ c.sec }}">{{ t.l }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:8px 4px 0">Следующее</div>
+      <div style="background:{{ c.card }};border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:inset 0 0 0 1.5px {{ focus.icon }};opacity:{{ op }}">
+        <div onClick="{{ goChat }}" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:{{ focus.tt }};cursor:pointer"><div style="width:20px;height:20px;border-radius:10px;background:{{ focus.icon }};color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center">{{ focus.g }}</div>{{ focus.label }} · {{ focus.ago }}<span style="margin-left:auto;font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }};font-weight:400">{{ focus.meta }}</span></div>
+        <div style="font-size:19px;font-weight:700;line-height:1.25">{{ focus.title }}</div>
+        <div style="font-size:15px;line-height:1.4;color:{{ c.sec }}">{{ focus.summary }}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:2px">
+          <sc-for list="{{ focus.answers }}" as="a" hint-placeholder-count="2">
+            <div onClick="{{ a.tap }}" style="height:48px;border-radius:12px;background:{{ a.bg }};color:{{ a.fg }};font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer"><span style="font:600 13px ui-monospace,'SF Mono',Menlo,monospace;opacity:.7">{{ a.n }}</span>{{ a.t }}</div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:8px 4px 0">Остальное</div>
+      <div style="background:{{ c.card }};border-radius:12px;overflow:hidden;opacity:{{ op }}">
+        <sc-for list="{{ rest }}" as="r" hint-placeholder-count="5">
+          <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:10px;padding:0 12px;height:52px;border-top:{{ r.border }};cursor:pointer">
+            <div style="width:10px;height:10px;border-radius:5px;background:{{ r.dot }};flex:none"></div>
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ r.subColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.sub }}</div></div>
+            <div style="font-size:13px;color:{{ c.meta }};flex:none">{{ r.right }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isC }}" hint-placeholder-val="{{ false }}">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;gap:6px;opacity:{{ op }}">
+          <div style="display:flex;align-items:baseline;gap:8px;padding:6px 4px 0"><span style="font-size:17px;font-weight:700">{{ g.name }}</span><span style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">{{ g.where }}</span><span onClick="{{ goNew }}" style="margin-left:auto;font-size:15px;color:{{ c.tint }};cursor:pointer">＋</span></div>
+          <div style="background:{{ c.card }};border-radius:12px;overflow:hidden">
+            <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="1">
+              <div style="display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-top:{{ r.border }}">
+                <div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                  <div style="width:10px;height:10px;border-radius:5px;background:{{ r.dot }};flex:none"></div>
+                  <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.title }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ r.subColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.sub }}</div></div>
+                  <div style="font-size:13px;color:{{ c.meta }};flex:none">{{ r.right }}</div>
+                </div>
+                <sc-if value="{{ r.hasAnswers }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:8px;padding-left:20px">
+                    <sc-for list="{{ r.answers }}" as="a" hint-placeholder-count="2"><div onClick="{{ a.tap }}" style="height:36px;padding:0 12px;border-radius:18px;background:{{ a.bg }};color:{{ a.fg }};font-size:14px;font-weight:600;display:flex;align-items:center;cursor:pointer">{{ a.t }}</div></sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:16px;right:16px;bottom:99px;height:52px;border-radius:14px;background:{{ toastBg }};color:#fff;display:flex;align-items:center;gap:10px;padding:0 8px 0 16px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:15px">
+      <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Отправлено: «{{ lastAnswer }}»</div>
+      <div onClick="{{ undo }}" style="height:36px;padding:0 12px;border-radius:10px;color:#64A8FF;font-weight:600;display:flex;align-items:center;cursor:pointer">Отменить</div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ showFab }}" hint-placeholder-val="{{ true }}">
+    <div onClick="{{ goNew }}" style="position:absolute;right:16px;bottom:99px;height:52px;padding:0 20px 0 16px;border-radius:26px;background:{{ c.tint }};color:#fff;display:flex;align-items:center;gap:8px;font-size:17px;font-weight:600;box-shadow:0 8px 20px rgba(0,98,204,.35);cursor:pointer"><span style="font-size:24px;font-weight:400;line-height:1">＋</span>Новая задача</div>
+  </sc-if>
+  <div style="position:absolute;left:0;right:0;bottom:0"><dc-import name="TabBar" active="inbox" dark="{{ dark }}" inbox-badge="{{ nWait }}" review-badge="{{ 3 }}" on-tab="{{ onTab }}" hint-size="100%,83px"></dc-import></div>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;a&quot;,&quot;b&quot;,&quot;c&quot;],&quot;default&quot;:&quot;a&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;normal&quot;,&quot;answered&quot;,&quot;offline&quot;,&quot;empty&quot;,&quot;loading&quot;],&quot;default&quot;:&quot;normal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { answered: false, last: null, toastGone: false };
+  pal(d) {
+    return d ? { bg:'#000',card:'#1C1C1E',text:'#fff',sec:'#C7C7CC',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',fill:'#2C2C2E',tint:'#0A84FF',green:'#30D158',orange:'#FF9F0A',red:'#FF453A',gT:'rgba(48,209,88,.18)',oT:'rgba(255,159,10,.2)',rT:'rgba(255,69,58,.2)',bT:'rgba(10,132,255,.2)',home:'#fff' }
+             : { bg:'#F2F2F7',card:'#fff',text:'#000',sec:'#3C3C43',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',fill:'#E5E5EA',tint:'#007AFF',green:'#248A3D',orange:'#C93400',red:'#D70015',gT:'#E6F6EA',oT:'#FFF0DE',rT:'#FFE9E8',bT:'#E3EEFF',home:'#000' };
+  }
+  answer(t) {
+    clearTimeout(this.tm);
+    this.setState({ answered: true, last: t, toastGone: false });
+    this.tm = setTimeout(() => this.setState({ toastGone: true }), 3000);
+  }
+  componentWillUnmount() { clearTimeout(this.tm); }
+  renderVals() {
+    const p = this.props, d = !!p.dark, c = this.pal(d);
+    const st = this.state.answered ? 'answered' : (p.state ?? 'normal');
+    const v = p.variant ?? 'a', off = st === 'offline';
+    const nav = k => () => p.onNav && p.onNav(k);
+    const K = { needs: { icon:'#FF9500', g:'?', tint:c.oT, tt:c.orange, label:'Ждёт ответа' }, failed: { icon:'#FF3B30', g:'!', tint:c.rT, tt:c.red, label:'Ошибка' } };
+    const api = { kind:'needs', title:'Миграция users → accounts', summary:'Модели обновлены, миграция обратимая. Запустить на staging или сначала показать SQL?', mac:'mbp-work', meta:'api · mbp-work · 4 файла', ago:'2 мин', ctx:'#34C759', answers:['Запусти на staging','Покажи SQL'] };
+    const auth = { kind:'failed', title:'3 теста падают в auth_test.go', summary:'После рефакторинга мок токена истекает раньше проверки. Починить мок или откатить?', mac:'mac-mini', meta:'auth-svc · mac-mini · 2 файла', ago:'8 мин', ctx:'#34C759', answers:['Почини мок','Откати'] };
+    let waitRaw = [api, auth];
+    let workRaw = [
+      { title:'Passkey-логин', tool:'Edit src/routes/login.tsx', meta:'web · mbp-work', time:'1:42' },
+      { title:'Структурированный output', tool:'Bash: make test', meta:'clrc · mbp-work', time:'0:18' }
+    ];
+    if (st === 'answered') { waitRaw = [auth]; workRaw = [{ title:'Миграция users → accounts', tool:'Bash: psql -f 0042_accounts.sql', meta:'api · mbp-work', time:'0:03' }, ...workRaw]; }
+    const lastAnswer = this.state.last || 'Запусти на staging';
+    const mkAns = (s, k) => s.answers.map((t, i) => ({ t, n: i + 1, tap: off ? () => {} : () => this.answer(t), bg: off ? c.fill : k.tint, fg: off ? c.meta : k.tt }));
+    const waiting = waitRaw.map(s => { const k = K[s.kind]; return { ...s, ...k, op: off ? .6 : 1, offline: off && s.mac === 'mac-mini', answers: mkAns(s, k), open: nav('chat') }; });
+    const border = i => i ? `0.5px solid ${c.sep}` : 'none';
+    const working = workRaw.map((w, i) => ({ ...w, border: border(i) }));
+    const f = waiting[0];
+    const restRaw = [
+      ...waiting.slice(1).map(s => ({ dot: s.icon, title: s.title, sub: s.meta, subColor: c.meta, right: s.ago, open: nav('chat') })),
+      ...workRaw.map(w => ({ dot: '#007AFF', title: w.title, sub: w.tool, subColor: c.tint, right: w.time, open: nav('chat') })),
+      { dot: '#34C759', title: 'Ревью MR !209 готово', sub: 'clrc · 2 замечания', subColor: c.meta, right: '14 мин', open: nav('chat') },
+      { dot: '#8E8E93', title: 'zsh · mbp-work', sub: '~/dev/clrc $ git status', subColor: c.meta, right: 'idle', open: nav('terminal') }
+    ];
+    const rest = restRaw.map((r, i) => ({ ...r, border: border(i) }));
+    const row = (dot, title, sub, subColor, right, open, s) => ({ dot, title, sub, subColor, right, open, hasAnswers: !!s, answers: s ? mkAns(s, K[s.kind]) : [] });
+    const groupsRaw = [
+      { name:'api', where:'mbp-work · main', rows: st === 'answered' ? [row('#007AFF', 'Миграция users → accounts', 'Bash: psql -f 0042…', c.tint, '0:03', nav('chat'))] : [row('#FF9500', api.title, 'Ждёт ответа · 4 файла', c.orange, '2 мин', nav('chat'), api)] },
+      { name:'auth-svc', where:'mac-mini · refactor/token', rows:[row('#FF3B30', auth.title, 'Ошибка · 2 файла', c.red, '8 мин', nav('chat'), auth)] },
+      { name:'web', where:'mbp-work · feature/passkey', rows:[row('#007AFF', 'Passkey-логин', 'Edit src/routes/login.tsx', c.tint, '1:42', nav('chat'))] },
+      { name:'clrc', where:'mbp-work · feat/structured-output', rows:[row('#007AFF', 'Структурированный output', 'Bash: make test', c.tint, '0:18', nav('chat')), row('#34C759', 'Ревью MR !209 готово', '2 замечания', c.meta, '14 мин', nav('chat')), row('#8E8E93', 'zsh', '$ git status', c.meta, 'idle', nav('terminal'))] }
+    ];
+    const groups = groupsRaw.map(g => ({ ...g, rows: g.rows.map((r, i) => ({ ...r, border: border(i) })) }));
+    const toast = st === 'answered' && !this.state.toastGone;
+    return {
+      c, dark: d, offline: off, op: off ? .6 : 1,
+      isLoading: st === 'loading', isEmpty: st === 'empty',
+      isA: v === 'a' && !['loading','empty'].includes(st), isB: v === 'b' && !['loading','empty'].includes(st), isC: v === 'c' && !['loading','empty'].includes(st),
+      connDot: off ? '#FF3B30' : st === 'loading' ? '#FF9500' : '#34C759', connText: off ? 'нет связи' : '2 Мака',
+      summaryLine: st === 'empty' ? 'Все Маки на связи' : st === 'loading' ? 'Обновление…' : `${waiting.length} ждут вас · ${working.length} работают · 1 готово`,
+      nWait: st === 'empty' || st === 'loading' ? 0 : waiting.length, nWork: working.length, waiting, working,
+      tiles: [{ n: waiting.length, l: 'ждут вас', color: '#FF9500' }, { n: working.length, l: 'работают', color: c.tint }, { n: 1, l: 'готово', color: d ? c.green : '#248A3D' }],
+      focus: f, rest, groups,
+      recents: [{ name:'api', path:'~/dev/api' }, { name:'web', path:'~/dev/web' }, { name:'clrc', path:'~/dev/clrc' }].map((r, i) => ({ ...r, border: border(i) })),
+      toast, showFab: !toast && st !== 'empty' && st !== 'loading', lastAnswer, toastBg: d ? '#3A3A3C' : '#1C1C1E',
+      undo: () => { clearTimeout(this.tm); this.setState({ answered: false, toastGone: false }); },
+      goNew: nav('newtask'), goChat: nav('chat'), goTerm: nav('terminal'),
+      onTab: k => p.onNav && p.onNav(k)
+    };
+  }
+}
+</script>
+</body>
+</html>

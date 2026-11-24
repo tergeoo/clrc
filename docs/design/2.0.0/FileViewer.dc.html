@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:#1C1C21;color:#E6E6EA;font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ true }}" hint-size="100%,54px"></dc-import>
+  <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 4px">
+    <div onClick="{{ back }}" style="width:32px;height:44px;display:flex;align-items:center;justify-content:center;color:#0A84FF;font-size:30px;font-weight:300;cursor:pointer">‹</div>
+    <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600">report.go</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:#8E8E93">clrc/agent · 4.2 КБ · Go</div></div>
+    <div style="width:36px;height:36px;border-radius:18px;background:{{ searchBtn }};display:flex;align-items:center;justify-content:center;font-size:16px">⌕</div>
+    <div style="width:36px;height:36px;border-radius:18px;background:#2C2C32;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600">Aa</div>
+  </div>
+  <sc-if value="{{ search }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:none;display:flex;gap:8px;align-items:center;padding:0 12px 8px">
+      <div style="flex:1;height:34px;border-radius:10px;background:#2C2C32;display:flex;align-items:center;padding:0 10px;font:14px ui-monospace,'SF Mono',Menlo,monospace">changed</div>
+      <span style="font-size:13px;color:#AEAEB2">2 из 5</span>
+      <div style="width:32px;height:32px;border-radius:8px;background:#2C2C32;display:flex;align-items:center;justify-content:center">↑</div>
+      <div style="width:32px;height:32px;border-radius:8px;background:#2C2C32;display:flex;align-items:center;justify-content:center">↓</div>
+    </div>
+  </sc-if>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:4px 10px 0 2px;font:12px/19px ui-monospace,'SF Mono',Menlo,monospace;border-top:0.5px solid #3A3A40">
+    <sc-for list="{{ lines }}" as="ln" hint-placeholder-count="20">
+      <div style="display:grid;grid-template-columns:32px minmax(0,1fr);gap:8px;background:{{ ln.bg }}"><span style="color:#6E6E78;text-align:right">{{ ln.n }}</span><span style="white-space:pre-wrap;word-break:break-all"><sc-for list="{{ ln.segs }}" as="sg" hint-placeholder-count="1"><span style="color:{{ sg.c }};background:{{ sg.bg }};border-radius:2px">{{ sg.t }}</span></sc-for></span></div>
+    </sc-for>
+  </div>
+  <sc-if value="{{ truncated }}" hint-placeholder-val="{{ false }}"><div style="flex:none;margin:8px 12px 0;padding:10px 12px;border-radius:10px;background:#3A2E1A;color:#FFCC80;font-size:13px">Файл обрезан: показаны первые 100 КБ из 340 КБ</div></sc-if>
+  <div style="flex:none;background:#26262B;border-top:0.5px solid #3A3A40;padding:8px 12px 34px;display:flex;gap:8px;margin-top:8px">
+    <div style="flex:1;height:44px;border-radius:12px;background:#3A3A40;font-size:14px;display:flex;align-items:center;justify-content:center">Копировать путь</div>
+    <div onClick="{{ ask }}" style="flex:1.2;height:44px;border-radius:12px;background:#0A84FF;color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer">Спросить Claude</div>
+    <div onClick="{{ term }}" style="width:52px;height:44px;border-radius:12px;background:#3A3A40;font:600 13px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center;justify-content:center;cursor:pointer">$_</div>
+  </div>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:#fff"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;search&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;truncated&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props, search = p.search ?? true;
+    const K = '#FC5FA3', S = '#FF8170', F = '#67B7A4', T = '#5DD8FF', C = '#7F8C98', D = '#E6E6EA';
+    const src = [
+      [[['package','k'],' agent']],
+      [''],
+      [[['import','k'],' (']],
+      [['  ',['"encoding/json"','s']]],
+      [['  ',['"time"','s']]],
+      [[')']],
+      [''],
+      [[['// Report — итог хода Claude для карточки в iOS.','c']]],
+      [[['type','k'],' ',['Report','t'],' ',['struct','k'],' {']],
+      [['  Status       ',['string','t'],'   ',['`json:"status"`','s']]],
+      [['  Title        ',['string','t'],'   ',['`json:"title"`','s']]],
+      [['  Summary      ',['string','t'],'   ',['`json:"summary"`','s']]],
+      [['  Questions    []',['string','t'],' ',['`json:"questions"`','s']]],
+      [['  ',['Changed','m'],'Files []',['string','t'],' ',['`json:"',''],['changed','m'],['_files"`','s']], 'hit'],
+      [['  NextSteps    []',['string','t'],' ',['`json:"next_steps"`','s']]],
+      [['  Duration     time.',['Duration','t']]],
+      [['}']],
+      [''],
+      [[['func','k'],' (r *',['Report','t'],') ',['HasChanges','f'],'() ',['bool','t'],' {']],
+      [['  ',['return','k'],' len(r.',['Changed','m'],'Files) > 0']],
+      [['}']],
+      [''],
+      [[['func','k'],' ',['Decode','f'],'(b []',['byte','t'],') (*',['Report','t'],', ',['error','t'],') {']],
+      [['  ',['var','k'],' r ',['Report','t']]],
+      [['  ',['if','k'],' err := json.',['Unmarshal','f'],'(b, &r); err != ',['nil','k'],' {']],
+      [['    ',['return','k'],' ',['nil','k'],', err']],
+      [['  }']],
+      [['  ',['return','k'],' &r, ',['nil','k']]],
+      [['}']]
+    ];
+    const lines = src.map(([segs, flag], i) => ({ n: i + 1, bg: flag === 'hit' ? 'rgba(255,214,10,.08)' : 'transparent',
+      segs: (typeof segs === 'string' ? [segs] : segs).map(x => { const [t, k = ''] = typeof x === 'string' ? [x] : x;
+        return { t, c: { k: K, s: S, f: F, t: T, c: C, m: '#1C1C21' }[k] || (k === '' && t.startsWith('`') ? S : D), bg: k === 'm' ? (search ? '#FFD60A' : 'transparent') : 'transparent' }; }) }));
+    lines.forEach(l => l.segs.forEach(s => { if (s.c === '#1C1C21' && !search) s.c = D; }));
+    return { search, truncated: !!p.truncated, lines, searchBtn: search ? 'rgba(10,132,255,.35)' : '#2C2C32',
+      back: () => p.onNav && p.onNav('projects'), ask: () => p.onNav && p.onNav('chat'), term: () => p.onNav && p.onNav('terminal') };
+  }
+}
+</script>
+</body>
+</html>

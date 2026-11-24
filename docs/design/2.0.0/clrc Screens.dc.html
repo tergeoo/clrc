@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#E6E5E1}a{color:#0062CC;text-decoration:none}a:hover{color:#003E80;text-decoration:underline}</style>
+</helmet>
+<div style="padding:72px 80px 120px;font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;color:#1C1C1E;display:flex;flex-direction:column;gap:72px;min-width:max-content">
+
+  <header style="display:flex;flex-direction:column;gap:14px;max-width:1100px">
+    <div style="font:600 13px ui-monospace,'SF Mono',Menlo,monospace;color:#6C6C70">clrc · iOS · 24.11.2026</div>
+    <div style="font-size:56px;font-weight:700;letter-spacing:-1px;line-height:1.05">Редизайн: телефон — для чтения и решений</div>
+    <div style="font-size:19px;line-height:1.45;color:#3C3C43;max-width:860px;text-wrap:pretty">Все экраны из брифа, 3 варианта Входящих и чата, состояния, клавиатура, тёмная тема, diff на Pro Max и SE. Кликабельная версия — <a href="clrc Prototype.dc.html">clrc Prototype</a>.</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px">
+      <div style="background:#fff;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#6C6C70">Решения по открытым вопросам</div><div style="font-size:15px;line-height:1.5">1 · Входящие и Проекты — две вкладки (альтернатива: <a href="#1c">1c</a>)<br>2 · Терминал — режим сессии и проекта, не вкладка<br>3 · Merge — в «Ещё», с подтверждением</div></div>
+      <div style="background:#fff;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600;color:#6C6C70">&nbsp;</div><div style="font-size:15px;line-height:1.5">4 · Ответ из Входящих уходит сразу, 3 с на отмену<br>5 · iPad split-view — следующим этапом<br>6 · В макетах 2 Мака; уровень «Маки» скрыт, если Мак один</div></div>
+      <div style="background:#fff;border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:8px"><div style="font-size:13px;font-weight:600;color:#6C6C70">Статусы — везде одинаково</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px 14px;font-size:15px">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:7px;background:#FF9500"></span>ждёт ответа</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:7px;background:#FF3B30"></span>ошибка</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:7px;background:#007AFF"></span>работает</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:7px;background:#34C759"></span>готово</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:7px;background:#8E8E93"></span>неизвестно</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section id="flow" style="display:flex;flex-direction:column;gap:20px">
+    <div style="font-size:32px;font-weight:700">Карта флоу</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:15px">
+      <sc-for list="{{ flows }}" as="f" hint-placeholder-count="6">
+        <div style="display:grid;grid-template-columns:260px minmax(0,1fr) 150px;gap:20px;align-items:center;background:#fff;border-radius:14px;padding:14px 18px">
+          <div style="font-weight:600">{{ f.name }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <sc-for list="{{ f.steps }}" as="s" hint-placeholder-count="4">
+              <a href="{{ s.href }}" style="height:30px;padding:0 12px;border-radius:15px;background:{{ s.bg }};color:{{ s.fg }};display:flex;align-items:center;font-size:14px">{{ s.t }}</a>
+              <span style="color:#8E8E93;display:{{ s.arrow }}">→</span>
+            </sc-for>
+          </div>
+          <div style="font:600 14px ui-monospace,'SF Mono',Menlo,monospace;text-align:right;color:{{ f.mc }}">{{ f.metric }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section id="variants" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">Варианты · Входящие</div><div style="font-size:16px;color:#3C3C43">Рекомендую <a href="#1a">1a</a> как основу и тайлы-счётчики из <a href="#1b">1b</a> на iPad.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="1a" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">1a</span><span style="font-size:18px;font-weight:600">По срочности</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Как в брифе: группы «Ждёт вас → Работает → Готово → Терминалы». Ответы прямо в карточке, FAB «Новая задача» под большим пальцем.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" variant="a" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="1b" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">1b</span><span style="font-size:18px;font-weight:600">Триаж: одно следующее дело</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Счётчики сверху, одна крупная карточка «Следующее» с большими кнопками, остальное — плотный список. Быстрее всего для 10-секундных сессий.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" variant="b" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="1c" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">1c</span><span style="font-size:18px;font-weight:600">По проектам</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Ответ на вопрос 1: одна вкладка с переключателем «По статусу / По проектам». «＋» у проекта — новая задача в 1 тап.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" variant="c" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:24px"><div style="font-size:32px;font-weight:700">Варианты · Чат</div><div style="font-size:16px;color:#3C3C43">Режимы Chat и Brief — <a href="#2a">2a</a> и <a href="#2b">2b</a>. <a href="#2c">2c</a> — альтернатива: итог закреплён над полем ввода.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="2a" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">2a</span><span style="font-size:18px;font-weight:600">Chat: текст, затем итог</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Инструменты свёрнуты в одну строку. «4 файла · Diff ›» ведёт в diff хода. Внизу чипы быстрых ответов и пилюля «Ответить…» — клавиатура закрыта.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" variant="chat" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="2b" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">2b</span><span style="font-size:18px;font-weight:600">Brief: итог первым</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Карточка итога сразу под сообщением, текст Claude свёрнут в «Подробности». Минимум прокрутки.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" variant="brief" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="2c" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">2c</span><span style="font-size:18px;font-weight:600">Итог закреплён внизу</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:60px">Вопрос и кнопки ответа всегда в нижней трети, даже если лента прокручена к началу. Лента — только текст и код.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" variant="pinned" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="inbox" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.2 Входящие — состояния</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Статус всех сессий без единого тапа. Ответ уходит сразу, 3 секунды на отмену.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-521" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.2·1</span><span style="font-size:18px;font-weight:600">Ответ отправлен</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Карточка переехала в «Работает», тост с отменой на месте FAB.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" state="answered" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-522" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.2·2</span><span style="font-size:18px;font-weight:600">Нет связи с relay</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Баннер сверху, карточки — последняя известная версия, кнопки ответа неактивны.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" state="offline" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-523" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.2·3</span><span style="font-size:18px;font-weight:600">Пусто</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Одна главная кнопка и недавние проекты — запуск в 1 тап.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" state="empty" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-524" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.2·4</span><span style="font-size:18px;font-weight:600">Загрузка</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Скелетоны вместо спиннера на весь экран.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" state="loading" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-525" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.2·5</span><span style="font-size:18px;font-weight:600">Тёмная тема</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Системная тёмная тема; цвета статусов — тёмные варианты iOS.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Inbox" dark="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="newtask" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.3 Новая задача</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Мак → проект → режим. Тап по проекту при пустом поле — сразу запуск. Клавиатура только по тапу в поле.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-531" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.3·1</span><span style="font-size:18px;font-weight:600">Шторка, без клавиатуры</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Поле задачи не в фокусе. Главная кнопка — внизу.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="NewTask"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-532" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.3·2</span><span style="font-size:18px;font-weight:600">Ввод задачи</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Шторка растёт до .large; Мак, проект и режим — строкой чипов над полем. «Запустить» — в панели над клавиатурой.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="NewTask" focused="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-533" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.3·3</span><span style="font-size:18px;font-weight:600">Тёмная тема</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="NewTask" dark="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="chat" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.4 Чат — клавиатура и состояния</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Клавиатура не открывается при входе. С клавиатурой шапка сжимается до 32 pt, ввод + клавиатура ≈ 46 % высоты.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-541" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.4·1</span><span style="font-size:18px;font-weight:600">Режим ввода</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Одна строка над клавиатурой: спрятать, вложить путь/шаблон, поле, отправить. Свайп по ленте прячет клавиатуру.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" keyboard="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-542" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.4·2</span><span style="font-size:18px;font-weight:600">Claude работает</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Живой индикатор в шапке, текущий инструмент в ленте, кнопка «Стоп» рядом с полем.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" state="working" variant="brief" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-543" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.4·3</span><span style="font-size:18px;font-weight:600">Ошибка хода</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Красная карточка, «Повторить» и «Сжать и продолжить».</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" state="error" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-544" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.4·4</span><span style="font-size:18px;font-weight:600">Тёмная тема</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Chat" dark="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="terminal" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.6 Терминал</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Аварийный доступ. Клавиатура только по кнопке, одна строка спецклавиш, Ctrl залипает.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-561" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.6·1</span><span style="font-size:18px;font-weight:600">Просмотр</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">13 pt, пинч-зум 10–18. Пути подчёркнуты — тап открывает файл.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Terminal"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-562" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.6·2</span><span style="font-size:18px;font-weight:600">Ввод</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Esc Tab Ctrl ↑↓←→ | ~ / - и «спрятать» — в одной строке 44 pt.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Terminal" keyboard="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-563" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.6·3</span><span style="font-size:18px;font-weight:600">Переподключение</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Ввод заблокирован, вывод остаётся читаемым.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Terminal" state="reconnect" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-564" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.6·4</span><span style="font-size:18px;font-weight:600">Сессия завершена</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Terminal" state="ended" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="push" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.12 Push и Live Activity</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Ответ на вопрос — удержать уведомление и нажать вариант: 2 тапа, без открытия приложения.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-5121" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.12·1</span><span style="font-size:18px;font-weight:600">Уведомление с ответами</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Кнопки действий = вопросы из report.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="LockScreen" mode="push" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-5122" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.12·2</span><span style="font-size:18px;font-weight:600">Live Activity</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Проект, текущий инструмент, таймер хода. В Dynamic Island — точка статуса и время.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="LockScreen" mode="live" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="review" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.7–5.8 Ревью</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Изменения от Claude и MR из GitLab в одной вкладке. GitLab-часть зависит от бэкенда.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-571" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.7·1</span><span style="font-size:18px;font-weight:600">GitLab MR</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Пайплайн, обсуждения, +/−, ветки — без входа в MR.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="ReviewList" tab="gitlab" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-572" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.7·2</span><span style="font-size:18px;font-weight:600">От Claude</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Ходы с изменёнными файлами из всех сессий.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="ReviewList" tab="claude" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-573" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.7·3</span><span style="font-size:18px;font-weight:600">GitLab не подключён</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="ReviewList" state="nogitlab" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-574" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.7·4</span><span style="font-size:18px;font-weight:600">Пусто</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="ReviewList" state="empty" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-581" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·1</span><span style="font-size:18px;font-weight:600">Обзор MR</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Approve и Комментарий внизу; Merge, Закрыть, Открыть в браузере — в «···».</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="MergeRequest"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-582" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·2</span><span style="font-size:18px;font-weight:600">Изменения хода Claude</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Тот же экран без GitLab: «Принять», «Попросить исправить», откат файла в «···».</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="MergeRequest" kind="claude" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-583" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·3</span><span style="font-size:18px;font-weight:600">Обзор MR, тёмная</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="MergeRequest" dark="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="diff" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.8 Diff файла</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Код всегда в тёмной палитре. Unified в портрете, split — в ландшафте на Pro Max. Word-diff, свёрнутые участки, мини-карта, обсуждения между строк.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-584" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·4</span><span style="font-size:18px;font-weight:600">Pro Max, портрет</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Навигация по ханкам и «Файл ›» — внизу. Тап по строке открывает комментарий.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Diff"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-585" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·5</span><span style="font-size:18px;font-weight:600">Комментарий к строке</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Превью строки над полем, выделенная строка видна над шторкой.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Diff" comment="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-586" style="display:flex;flex-direction:column;gap:14px;width:397px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·6</span><span style="font-size:18px;font-weight:600">iPhone SE</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">11.5 pt, узкие колонки номеров; перенос включён.</div></sc-if>
+        <div style="padding:11px"><div style="width:375px;height:667px;border-radius:4px;overflow:hidden;position:relative;box-shadow:0 0 0 12px #111113,0 -70px 0 12px #111113,0 70px 0 12px #111113,0 0 0 13px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Diff" device="se" style="width:375px;height:667px" hint-size="375px,667px"></dc-import></div></div>
+      </div>
+      <div id="s-587" style="display:flex;flex-direction:column;gap:14px;width:874px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.8·7</span><span style="font-size:18px;font-weight:600">Pro Max, ландшафт — split</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Старое слева, новое справа; комментарии — компактной строкой.</div></sc-if>
+        <div style="padding:11px"><div style="width:852px;height:393px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Diff" orientation="landscape" style="width:852px;height:393px" hint-size="852px,393px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="projects" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.9–5.10 Проекты и файлы</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Маки → проекты → проект. Если Мак один, первый уровень пропускается.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-591" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.9·1</span><span style="font-size:18px;font-weight:600">Маки</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Projects" level="macs" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-592" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.9·2</span><span style="font-size:18px;font-weight:600">Проекты Мака</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Ветка и «грязное» состояние — [backend].</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Projects" level="mac" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-593" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.9·3</span><span style="font-size:18px;font-weight:600">Проект</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Действия — сверху контента, создание и удаление папок спрятаны в «···».</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Projects" level="project" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-594" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.9·4</span><span style="font-size:18px;font-weight:600">Выбор папки</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Из «Новой задачи». Хлебные крошки тапабельны.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Projects" level="picker" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-5101" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.10·1</span><span style="font-size:18px;font-weight:600">Просмотр файла, поиск</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Подсветка, номера строк, совпадения.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="FileViewer"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-5102" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.10·2</span><span style="font-size:18px;font-weight:600">Большой файл</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Лимит агента — 100 КБ, плашка честно об этом говорит.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="FileViewer" search="{{ false }}" truncated="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+  <section id="settings" style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:32px;font-weight:700">5.11 Настройки и 5.1 вход</div><div style="font-size:16px;color:#3C3C43;max-width:900px">Опасная зона отделена и красная. Вход — один шаг по QR.</div></div>
+    <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+      <div id="s-5111" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.11·1</span><span style="font-size:18px;font-weight:600">Настройки</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Settings"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-5112" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.11·2</span><span style="font-size:18px;font-weight:600">Настройки, тёмная</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty"></div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Settings" dark="{{ true }}" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-511" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.1·1</span><span style="font-size:18px;font-weight:600">Вход</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Название продукта и одна фраза. Технических полей на первом экране нет.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Onboarding"  style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-512" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.1·2</span><span style="font-size:18px;font-weight:600">Ручной ввод</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">URL-клавиатура без автокоррекции; «Войти» над клавиатурой.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Onboarding" state="manual" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+      <div id="s-513" style="display:flex;flex-direction:column;gap:14px;width:415px">
+        <div style="display:flex;gap:10px;align-items:center"><span style="font:600 12px ui-monospace,'SF Mono',Menlo,monospace;padding:4px 8px;border-radius:6px;background:#1C1C1E;color:#fff">5.1·3</span><span style="font-size:18px;font-weight:600">Неверный пароль</span></div>
+        <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><div style="font-size:14px;line-height:1.45;color:#3C3C43;min-height:40px;text-wrap:pretty">Инлайн-ошибка под полем.</div></sc-if>
+        <div style="padding:11px"><div style="width:393px;height:852px;border-radius:55px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #111113,0 0 0 11px #48484A,0 30px 60px -20px rgba(0,0,0,.35)"><dc-import name="Onboarding" state="error" style="width:393px;height:852px" hint-size="393px,852px"></dc-import></div></div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const notes = this.props.showNotes ?? true;
+    const step = (t, href, kind) => ({ t, href, bg: kind === 'act' ? '#E3EEFF' : '#F2F2F7', fg: kind === 'act' ? '#0062CC' : '#1C1C1E', arrow: 'inline' });
+    const fl = (name, steps, metric, ok = true) => { const st = steps.map(([t, h, k]) => step(t, h, k)); st[st.length - 1].arrow = 'none'; return { name, steps: st, metric, mc: ok ? '#248A3D' : '#6C6C70' }; };
+    const flows = [
+      fl('1 · Проверить статус', [['Открыть приложение', '#1a'], ['Входящие: всё видно', '#1a', 'act']], '0 тапов'),
+      fl('2 · Ответить на вопрос', [['Push', '#s-5121'], ['удержать', '#s-5121'], ['«Запусти на staging»', '#s-5121', 'act']], '≤ 2 тапа'),
+      fl('3 · Посмотреть изменения', [['Отчёт: «4 файла · Diff ›»', '#2a'], ['Изменения хода', '#s-582'], ['Diff файла', '#s-584', 'act']], '2 тапа'),
+      fl('4 · Новая задача', [['«Новая задача»', '#1a'], ['проект', '#s-531'], ['текст или голос', '#s-532'], ['Запустить', '#s-532', 'act']], '3 тапа + текст'),
+      fl('5 · Ревью MR', [['Ревью', '#s-571'], ['MR !214', '#s-581'], ['файл', '#s-584'], ['тап по строке', '#s-585'], ['Approve', '#s-581', 'act']], 'по ситуации', false),
+      fl('6 · Аварийный терминал', [['Проект', '#s-593'], ['«Терминал здесь»', '#s-561'], ['^C', '#s-561', 'act']], '2 тапа')
+    ];
+    return { notes, flows };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.bg }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ dark }}" hint-size="100%,54px"></dc-import>
+  <div style="height:44px;flex:none;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;border-bottom:0.5px solid {{ c.sep }}">Настройки</div>
+  <div style="flex:1;min-height:0;overflow:hidden;padding:0 16px 100px;display:flex;flex-direction:column">
+    <sc-for list="{{ groups }}" as="g" hint-placeholder-count="7">
+      <div style="font-size:13px;color:{{ g.hc }};text-transform:uppercase;letter-spacing:.3px;padding:16px 16px 6px">{{ g.h }}</div>
+      <div style="background:{{ c.card }};border-radius:12px;overflow:hidden">
+        <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="2">
+          <div onClick="{{ r.tap }}" style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:{{ r.border }};font-size:16px;color:{{ r.color }};cursor:pointer">
+            <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.t }}</span>
+            <span style="font-size:15px;color:{{ c.meta }};display:flex;align-items:center;gap:6px"><sc-if value="{{ r.dot }}" hint-placeholder-val="{{ false }}"><span style="width:7px;height:7px;border-radius:4px;background:{{ r.dot }};display:inline-block"></span></sc-if>{{ r.v }}</span>
+            <sc-if value="{{ r.toggle }}" hint-placeholder-val="{{ false }}"><div style="width:51px;height:31px;border-radius:16px;background:#34C759;position:relative;flex:none"><div style="position:absolute;right:2px;top:2px;width:27px;height:27px;border-radius:14px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2)"></div></div></sc-if>
+            <sc-if value="{{ r.chev }}" hint-placeholder-val="{{ true }}"><span style="color:{{ c.chev }};font-size:18px">›</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:0"><dc-import name="TabBar" active="settings" dark="{{ dark }}" inbox-badge="{{ 2 }}" review-badge="{{ 3 }}" on-tab="{{ onTab }}" hint-size="100%,83px"></dc-import></div>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props, d = !!p.dark;
+    const c = d ? { bg:'#000',card:'#1C1C1E',text:'#fff',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',tint:'#0A84FF',red:'#FF453A',chev:'#5A5A5E',home:'#fff' }
+                : { bg:'#F2F2F7',card:'#fff',text:'#000',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',tint:'#007AFF',red:'#D70015',chev:'#C4C4C7',home:'#000' };
+    const R = (t, v = '', o = {}) => ({ t, v, chev: true, toggle: false, dot: '', color: c.text, ...o });
+    const G = [
+      ['Подключение', [R('Relay', 'relay.home.lan', { dot: '#34C759' }), R('Маки', '2'), R('Сканировать QR для нового Мака', '', { color: c.tint, chev: false })]],
+      ['Claude', [R('Профиль по умолчанию', 'work'), R('Вид по умолчанию', 'Chat'), R('Быстрые ответы и шаблоны', '6 · 4')]],
+      ['Терминал и код', [R('Шрифт терминала', '13 pt'), R('Перенос строк в коде', '', { toggle: true, chev: false })]],
+      ['Интеграции', [R('GitLab', 'gitlab.company.ru', { dot: '#34C759' }), R('Уведомления', 'ответ, ошибка')]],
+      ['Опасная зона', [R('Закрыть все сессии', '', { color: c.red, chev: false }), R('Выйти', '', { color: c.red, chev: false })]]
+    ];
+    return {
+      c, dark: d,
+      groups: G.map(([h, rows], gi) => ({ h, hc: gi === G.length - 1 ? c.red : c.meta, rows: rows.map((r, i) => ({ ...r, border: i ? `0.5px solid ${c.sep}` : 'none', tap: () => {} })) })),
+      onTab: k => p.onNav && p.onNav(k)
+    };
+  }
+}
+</script>
+</body>
+</html>

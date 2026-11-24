@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:100%;height:100%;position:relative;display:flex;flex-direction:column;background:{{ c.under }};color:{{ c.text }};font-family:-apple-system,'SF Pro Text',system-ui,'Helvetica Neue',sans-serif;overflow:hidden">
+  <dc-import name="StatusBar" dark="{{ true }}" hint-size="100%,54px"></dc-import>
+  <div style="position:absolute;left:0;right:0;bottom:0;top:{{ top }};background:{{ c.bg }};border-radius:12px 12px 0 0;display:flex;flex-direction:column;overflow:hidden">
+    <div style="width:36px;height:5px;border-radius:3px;background:{{ c.grab }};margin:6px auto 0;flex:none"></div>
+    <div style="height:44px;flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 16px">
+      <div onClick="{{ close }}" style="color:{{ c.tint }};font-size:17px;cursor:pointer">Отмена</div>
+      <div style="font-size:17px;font-weight:600">Новая задача</div>
+      <div></div>
+    </div>
+
+    <sc-if value="{{ unfocused }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-height:0;overflow:hidden;padding:0 16px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:6px 4px 2px">Мак</div>
+        <div style="display:flex;gap:8px">
+          <div style="height:34px;padding:0 14px;border-radius:17px;background:{{ c.tint }};color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px"><div style="width:7px;height:7px;border-radius:4px;background:#7CF09A"></div>mbp-work</div>
+          <div style="height:34px;padding:0 14px;border-radius:17px;background:{{ c.card }};color:{{ c.sec }};font-size:15px;display:flex;align-items:center;gap:6px"><div style="width:7px;height:7px;border-radius:4px;background:#34C759"></div>mac-mini</div>
+        </div>
+        <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:10px 4px 2px">Проект</div>
+        <div style="background:{{ c.card }};border-radius:12px;overflow:hidden">
+          <sc-for list="{{ projects }}" as="pr" hint-placeholder-count="3">
+            <div onClick="{{ pr.tap }}" style="height:52px;display:flex;align-items:center;gap:12px;padding:0 14px;border-top:{{ pr.border }};cursor:pointer">
+              <div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:600">{{ pr.name }}</div><div style="font:12px ui-monospace,'SF Mono',Menlo,monospace;color:{{ c.meta }}">{{ pr.path }}</div></div>
+              <div style="width:22px;height:22px;border-radius:11px;border:{{ pr.ring }};background:{{ pr.fill }};box-sizing:border-box;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ pr.check }}</div>
+            </div>
+          </sc-for>
+          <div onClick="{{ goPicker }}" style="height:44px;display:flex;align-items:center;padding:0 14px;border-top:0.5px solid {{ c.sep }};color:{{ c.tint }};font-size:16px;cursor:pointer">Выбрать папку…</div>
+        </div>
+        <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:10px 4px 2px">Задача · необязательно</div>
+        <div style="display:flex;gap:8px;align-items:stretch">
+          <div onClick="{{ focus }}" style="flex:1;min-height:64px;border-radius:12px;background:{{ c.card }};padding:10px 12px;box-sizing:border-box;font-size:16px;color:{{ c.meta }};cursor:text">Что сделать?</div>
+          <div style="width:52px;border-radius:12px;background:{{ c.bT }};color:{{ c.tint }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px"><div style="width:10px;height:16px;border-radius:5px;background:currentColor"></div><div style="width:2px;height:4px;background:currentColor"></div></div>
+        </div>
+        <div style="display:flex;gap:6px;overflow:hidden;padding-top:2px">
+          <sc-for list="{{ templates }}" as="t" hint-placeholder-count="4"><div style="flex:none;height:32px;padding:0 12px;border-radius:16px;border:0.5px solid {{ c.sep }};background:{{ c.card }};font-size:14px;display:flex;align-items:center">{{ t }}</div></sc-for>
+        </div>
+        <div style="font-size:13px;color:{{ c.meta }};text-transform:uppercase;letter-spacing:.3px;padding:10px 4px 2px">Режим</div>
+        <div style="height:34px;border-radius:9px;background:{{ c.fill }};padding:2px;box-sizing:border-box;display:grid;grid-template-columns:repeat(3,1fr);font-size:14px;font-weight:600">
+          <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><div onClick="{{ m.tap }}" style="display:flex;align-items:center;justify-content:center;border-radius:7px;background:{{ m.bg }};color:{{ m.fg }};box-shadow:{{ m.sh }};cursor:pointer">{{ m.t }}</div></sc-for>
+        </div>
+        <div style="font-size:13px;color:{{ c.meta }};padding:2px 4px">{{ modeHint }}</div>
+        <div style="height:44px;border-radius:12px;background:{{ c.card }};display:flex;align-items:center;padding:0 14px;font-size:16px;margin-top:4px">Дополнительно<span style="margin-left:auto;font-size:13px;color:{{ c.meta }}">имя, модель, профиль</span><span style="margin-left:8px;color:{{ c.meta }}">›</span></div>
+      </div>
+      <div style="flex:none;padding:10px 16px 34px;display:flex;flex-direction:column;gap:6px;align-items:center;border-top:0.5px solid {{ c.sep }}">
+        <div onClick="{{ start }}" style="align-self:stretch;height:50px;border-radius:14px;background:{{ c.tint }};color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer">Запустить в {{ projName }}</div>
+        <div onClick="{{ goTerm }}" style="font-size:15px;color:{{ c.tint }};height:28px;display:flex;align-items:center;cursor:pointer">Пустой терминал</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ focused }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-height:0;padding:0 16px;display:flex;flex-direction:column;gap:10px">
+        <div onClick="{{ blur }}" style="display:flex;gap:6px;flex-wrap:wrap;cursor:pointer">
+          <div style="height:30px;padding:0 10px;border-radius:15px;background:{{ c.card }};font-size:14px;display:flex;align-items:center;gap:6px"><div style="width:6px;height:6px;border-radius:3px;background:#34C759"></div>mbp-work</div>
+          <div style="height:30px;padding:0 10px;border-radius:15px;background:{{ c.card }};font:13px ui-monospace,'SF Mono',Menlo,monospace;display:flex;align-items:center">~/dev/{{ projName }}</div>
+          <div style="height:30px;padding:0 10px;border-radius:15px;background:{{ c.card }};font-size:14px;display:flex;align-items:center">{{ modeName }}</div>
+        </div>
+        <div style="flex:1;min-height:0;border-radius:12px;background:{{ c.card }};padding:12px;font-size:17px;line-height:1.4">Почини флаки-тест TestReconnect в relay — падает примерно раз в пять прогонов<span style="display:inline-block;width:2px;height:20px;background:{{ c.tint }};vertical-align:-4px;margin-left:1px"></span></div>
+        <div style="display:flex;gap:6px;overflow:hidden">
+          <sc-for list="{{ templates }}" as="t" hint-placeholder-count="4"><div style="flex:none;height:32px;padding:0 12px;border-radius:16px;border:0.5px solid {{ c.sep }};background:{{ c.card }};font-size:14px;display:flex;align-items:center">{{ t }}</div></sc-for>
+        </div>
+      </div>
+      <div style="flex:none;margin-top:10px;background:{{ c.bar }};border-top:0.5px solid {{ c.sep }};padding:7px 8px;display:flex;gap:8px;align-items:center">
+        <div onClick="{{ blur }}" style="width:36px;height:36px;border-radius:18px;background:{{ c.fill }};color:{{ c.sec }};display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">⌄</div>
+        <div style="width:36px;height:36px;border-radius:18px;background:{{ c.bT }};color:{{ c.tint }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px"><div style="width:8px;height:13px;border-radius:4px;background:currentColor"></div><div style="width:2px;height:3px;background:currentColor"></div></div>
+        <div style="flex:1"></div>
+        <div onClick="{{ start }}" style="height:36px;padding:0 18px;border-radius:18px;background:{{ c.tint }};color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;cursor:pointer">Запустить</div>
+      </div>
+      <dc-import name="Keyboard" dark="{{ dark }}" hint-size="100%,336px"></dc-import>
+    </sc-if>
+  </div>
+  <div style="position:absolute;left:50%;bottom:8px;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:{{ c.home }}"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:393,&quot;height&quot;:852},&quot;focused&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;dark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;onNav&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(k:string)=&gt;void&quot;}}">
+class Component extends DCLogic {
+  state = { focused: null, mode: 'chat', proj: 'clrc' };
+  pal(d) {
+    return d ? { under:'#0B0B0C',bg:'#1C1C1E',card:'#2C2C2E',text:'#fff',sec:'#C7C7CC',meta:'#8E8E93',sep:'rgba(84,84,88,.55)',fill:'#3A3A3C',bar:'#1C1C1E',tint:'#0A84FF',bT:'rgba(10,132,255,.2)',grab:'#5A5A5E',home:'#fff',selBg:'#636366' }
+             : { under:'#5E5E63',bg:'#F2F2F7',card:'#fff',text:'#000',sec:'#3C3C43',meta:'#6C6C70',sep:'rgba(60,60,67,.16)',fill:'#E3E3E8',bar:'#F2F2F7',tint:'#007AFF',bT:'#E3EEFF',grab:'#C4C4C8',home:'#000',selBg:'#fff' };
+  }
+  renderVals() {
+    const p = this.props, d = !!p.dark, c = this.pal(d);
+    const f = this.state.focused ?? !!p.focused;
+    const nav = k => () => p.onNav && p.onNav(k);
+    const border = i => i ? `0.5px solid ${c.sep}` : 'none';
+    const projs = [['clrc','~/dev/clrc · feat/structured-output'],['api','~/dev/api · main'],['web','~/dev/web · feature/passkey']];
+    const modeDefs = [['chat','Chat','Ответ целиком, итог — в конце хода'],['brief','Brief','Сначала карточка итога, текст свёрнут'],['terminal','Terminal','Claude в TUI, полный терминал']];
+    const md = modeDefs.find(m => m[0] === this.state.mode);
+    return {
+      c, dark: d, focused: f, unfocused: !f, top: f ? '62px' : '96px',
+      projName: this.state.proj, modeName: md[1], modeHint: md[2],
+      projects: projs.map(([name, path], i) => { const sel = name === this.state.proj; return { name, path, border: border(i), ring: sel ? 'none' : `1.5px solid ${c.sep}`, fill: sel ? c.tint : 'transparent', check: sel ? '✓' : '', tap: () => this.setState({ proj: name }) }; }),
+      modes: modeDefs.map(([k, t]) => { const sel = k === this.state.mode; return { t, bg: sel ? c.selBg : 'transparent', fg: sel ? c.text : c.sec, sh: sel ? '0 1px 3px rgba(0,0,0,.15)' : 'none', tap: () => this.setState({ mode: k }) }; }),
+      templates: ['Почини тесты','Ревью ветки','Объясни код','Обнови зависимости'],
+      focus: () => this.setState({ focused: true }), blur: () => this.setState({ focused: false }),
+      close: nav('inbox'), start: nav('chat'), goTerm: nav('terminal'), goPicker: nav('projects')
+    };
+  }
+}
+</script>
+</body>
+</html>
