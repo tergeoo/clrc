@@ -27,7 +27,7 @@ struct MainTabView: View {
             .tabItem { Label("Входящие", systemImage: "tray.full") }
             .tag(MainTab.inbox)
 
-            ContentUnavailableView("Ревью появится в следующем этапе", systemImage: "checklist")
+            ReviewScreen()
                 .tabItem { Label("Ревью", systemImage: "checklist") }
                 .tag(MainTab.review)
 

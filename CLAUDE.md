@@ -18,7 +18,7 @@ iPhone (SwiftUI) ──WS──▶ Relay (Go) ◀──WS── clrc agent (Go d
 - **`Claude Orchestrator.iOS/`** — SwiftUI iPhone app (Xcode project, iOS 26). 2.0 shell:
   tab bar Входящие · Ревью · Проекты · Настройки (`Shell/`), sessions pushed full screen via
   `SessionRoute`; Inbox (`Inbox/`, `InboxModel` → `InboxContent` → pure `InboxScreen`), New Task
-  sheet (`NewTask/`), chat (`Chat/`), terminal (`Terminal/`), Projects tab (`Projects/`), folder
+  sheet (`NewTask/`), chat (`Chat/`), diff and Review tab (`Diff/`, `Review/`, `GitClient`), terminal (`Terminal/`), Projects tab (`Projects/`), folder
   browser and file viewer (`Files/`, `FSClient` with a 10 s timeout), Settings (`Settings/`,
   editable quick replies/templates via `UserPreferences`), sign-in (`Onboarding/`), shared look in
   `DesignSystem/` (palette, `StatusIcon`, `.cardStyle()`).
@@ -86,7 +86,7 @@ Every text control message is a JSON envelope `{ "type": string, "payload": <raw
 There is no shared `proto` package (an older `proto/messages.go` was removed). When you add or change a message type, update all three.
 
 **Two transport channels on the same socket:**
-- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `agent_list`, `session_ready`, `error`, `*_result`).
+- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `git_status`, `git_diff`, `agent_list`, `session_ready`, `error`, `*_result`).
 - **Binary frames** = raw terminal bytes, wrapped in a custom framing: `[4-byte big-endian session_id length][session_id][payload]`. See `encodeBinaryFrame`/`decodeBinaryFrame`, duplicated in both `relay/hub.go` and `agent/ws_client.go`.
 - `connect` carries an optional `name` (session display name). The agent persists it
   (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
@@ -102,7 +102,7 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 - The `Hub` runs a single goroutine (`Run()`) that owns register/unregister via channels; all map access is guarded by `Hub.mu`. Connection writes go through per-conn mutexes (`AgentConn.Send`, `ClientConn.Send`).
 - A `Session` ties one `session_id` to one (agent, client) pair. Binary frames are routed by looking up the session and forwarding to the other side.
-- **Async request/response** (`list_sessions`, `fs_list`, `fs_mkdir`, `fs_delete`, `fs_read`) uses a `request_id` correlation: the relay stores `request_id → ClientConn` in `pendingRequests` (a `sync.Map`), forwards to the agent, and matches the agent's `*_result` reply back to the waiting client. The relay strips `agent_id` before forwarding to the agent.
+- **Async request/response** (`list_sessions`, `fs_list`, `fs_mkdir`, `fs_delete`, `fs_read`, `git_status`, `git_diff`) uses a `request_id` correlation: the relay stores `request_id → ClientConn` in `pendingRequests` (a `sync.Map`), forwards to the agent, and matches the agent's `*_result` reply back to the waiting client. The relay strips `agent_id` before forwarding to the agent.
 - **Connection lifecycle is asymmetric on purpose:** when a *client* drops unexpectedly, the relay sends `detach` to the agent — the PTY stays alive so the session survives reconnect. An explicit `disconnect` from the client *kills* the PTY. Preserve this distinction.
 
 ### Agent / PTY lifecycle (`agent/ws_client.go`, `agent/pty_session.go`, `agent/session_store.go`)
@@ -123,7 +123,7 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 ## Conventions / constraints
 
-- **Security limits live in the relay and agent and are deliberate** — don't remove them: 4 MB max WS message, agent/client connection caps, UUID-v4 session-id validation, agent-id/name length caps, login rate limiting. Filesystem ops (`agent/fs_ops.go`) resolve `~`/relative paths and **reject anything outside the user's home dir**; file reads are capped at 100 KB.
+- **Security limits live in the relay and agent and are deliberate** — don't remove them: 4 MB max WS message, agent/client connection caps, UUID-v4 session-id validation, agent-id/name length caps, login rate limiting. Filesystem ops (`agent/fs_ops.go`) resolve `~`/relative paths and **reject anything outside the user's home dir**; file reads are capped at 100 KB; delete never follows a symlink and refuses the home dir itself. Git ops (`agent/git_ops.go`) use the same confinement, validate file arguments (relative, inside the project, never option-like), run git with a 10 s timeout and no pager/prompts/external drivers, and cap diffs at 512 KB.
 - WebSocket library: `nhooyr.io/websocket` on both Go sides. All network calls use `context.Context` with timeouts.
 - The relay deploys via Docker (`relay/docker/Dockerfile`); release binaries are built by `.github/workflows/release.yml` on a `vX.Y.Z` tag (`make release VERSION=v1.2.3`). Homebrew formula/cask live in `Formula/` and `Casks/`.
 

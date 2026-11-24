@@ -9,17 +9,35 @@ struct DiffPreviewHost: View {
     @StateObject private var sessionManager: SessionManager
     @State private var viewed: Set<String> = []
 
-    static let states: Set<String> = ["difffile", "projectgit"]
+    static let states: Set<String> = ["difffile", "projectgit", "review"]
 
     init(state: String) {
         self.state = state
         let (relay, manager) = PreviewEnvironment.make(agents: [PreviewEnvironment.macs[0]], recents: PreviewEnvironment.recents)
+        if state == "review" {
+            let api = manager.createChatSession(for: PreviewEnvironment.macs[0], cwd: "/Users/g/startups/api", name: "api")
+            ChatPreviewHost.fill(api, state: "chat")
+            let web = manager.createChatSession(for: PreviewEnvironment.macs[0], cwd: "/Users/g/startups/web", name: "web")
+            ChatPreviewHost.fill(web, state: "chatworking")
+        }
         _relay = StateObject(wrappedValue: relay)
         _sessionManager = StateObject(wrappedValue: manager)
     }
 
     var body: some View {
-        NavigationStack {
+        Group {
+            if state == "review" {
+                ReviewScreen()
+            } else {
+                NavigationStack { content }
+            }
+        }
+        .environmentObject(relay)
+        .environmentObject(sessionManager)
+    }
+
+    @ViewBuilder
+    private var content: some View {
             if state == "projectgit" {
                 ProjectView(agentID: "mbp", path: "/Users/g/startups/api", previewGit: GitStatusInfo(payload: [
                     "branch": "feat/accounts", "ahead": 2, "behind": 0,
@@ -30,9 +48,6 @@ struct DiffPreviewHost: View {
             } else {
                 DiffFileScreen(files: UnifiedDiff.parse(Self.sample), index: 0, viewed: $viewed)
             }
-        }
-        .environmentObject(relay)
-        .environmentObject(sessionManager)
     }
 
     static let sample = """

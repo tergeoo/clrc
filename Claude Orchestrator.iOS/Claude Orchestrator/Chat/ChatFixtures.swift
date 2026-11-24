@@ -99,5 +99,10 @@ struct ChatPreviewHost: View {
     }
 
     static let states: Set<String> = ["chat", "brief", "chatworking", "chaterror", "chatinput"]
+
+    /// Feeds fixture turns into a live session (for the Review preview).
+    static func fill(_ session: ChatSession, state: String) {
+        session.apply(history: ChatFixtures.events(state))
+    }
 }
 #endif
