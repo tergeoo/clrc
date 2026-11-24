@@ -50,6 +50,13 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
         registerWithRelay()
     }
 
+    /// Stops pushes for this device (sign-out): the relay keeps the token
+    /// with no statuses until the next sign-in registers it again.
+    func unregister() {
+        guard let relay, let deviceToken, relay.connectionState == .connected else { return }
+        relay.sendPushRegister(token: deviceToken, sandbox: Self.sandbox, notify: [])
+    }
+
     /// Re-sends the registration (e.g. after Settings → Уведомления changed).
     func registerWithRelay() {
         guard let relay, let deviceToken, relay.connectionState == .connected else { return }
@@ -65,11 +72,13 @@ final class PushManager: NSObject, ObservableObject, UNUserNotificationCenterDel
     }
 
     private static func category(_ category: PushCategory) -> UNNotificationCategory {
+        // Answers reach a Claude that can run commands on the Mac: they
+        // need the phone unlocked (Face ID), never just a locked screen.
         var actions: [UNNotificationAction] = category.answerActions.map {
-            UNNotificationAction(identifier: $0.id, title: $0.title, options: [])
+            UNNotificationAction(identifier: $0.id, title: $0.title, options: [.authenticationRequired])
         }
         actions.append(UNTextInputNotificationAction(identifier: PushCategories.textReplyID, title: "Ответить текстом…",
-                                                     options: [], textInputButtonTitle: "Отправить",
+                                                     options: [.authenticationRequired], textInputButtonTitle: "Отправить",
                                                      textInputPlaceholder: "Ответ Claude"))
         return UNNotificationCategory(identifier: category.id, actions: actions, intentIdentifiers: [], options: [])
     }

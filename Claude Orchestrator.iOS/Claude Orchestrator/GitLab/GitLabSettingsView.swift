@@ -60,6 +60,13 @@ struct GitLabSettingsView: View {
         defer { checking = false }
         status = nil
         connectedAs = nil
+        // A saved token only goes to the host it was saved for: a new or
+        // mistyped address needs the token typed again.
+        let sameHost = GitLabAPI(baseURL: url, token: "x")?.baseURL.host == GitLabAPI(baseURL: GitLabCredentials.baseURL, token: "x")?.baseURL.host
+        if token.isEmpty && !sameHost {
+            status = "Для нового адреса введите токен ещё раз"
+            return
+        }
         let candidate = token.isEmpty ? (GitLabCredentials.token() ?? "") : token
         guard let api = GitLabAPI(baseURL: url, token: candidate), let client = GitLabClient(api: api) else {
             status = "Проверьте адрес GitLab и токен"
@@ -69,7 +76,10 @@ struct GitLabSettingsView: View {
             let user = try await client.send(.user, as: GitLabUser.self)
             GitLabCredentials.baseURL = api.baseURL.absoluteString
             url = api.baseURL.absoluteString
-            if !token.isEmpty { GitLabCredentials.save(token: token) }
+            if !token.isEmpty, !GitLabCredentials.save(token: token) {
+                status = "Не удалось сохранить токен в связке ключей"
+                return
+            }
             token = ""
             hasToken = true
             connectedAs = "\(user.name) (@\(user.username))"

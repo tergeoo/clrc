@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -236,5 +237,21 @@ func TestHandleChatHistoryReturnsEmptyArrayNotNullWhenCaughtUp(t *testing.T) {
 	}
 	if string(encoded) != `{"events":[]}` {
 		t.Fatalf(`marshalled events = %s, want {"events":[]} (not null) when the caller is fully caught up`, encoded)
+	}
+}
+
+// Review fix: a reply from a notification learns whether the chat still exists.
+func TestChatSendAck(t *testing.T) {
+	ok := chatSendAck("r1", true, nil)
+	if ok["request_id"] != "r1" || ok["ok"] != true {
+		t.Errorf("ok ack = %+v", ok)
+	}
+	missing := chatSendAck("r2", false, nil)
+	if missing["ok"] != false || missing["error"] != "unknown chat session" {
+		t.Errorf("missing ack = %+v", missing)
+	}
+	failed := chatSendAck("r3", true, errors.New("pipe closed"))
+	if failed["ok"] != false || failed["error"] != "pipe closed" {
+		t.Errorf("failed ack = %+v", failed)
 	}
 }

@@ -9,8 +9,18 @@ public enum GitLabEndpoint: Equatable, Sendable {
     case approve(project: Int, iid: Int)
     case note(project: Int, iid: Int, body: String)
     case lineComment(project: Int, iid: Int, body: String, refs: GitLabDiffRefs, oldPath: String, newPath: String, line: DiffLine)
-    case merge(project: Int, iid: Int)
+    /// `sha`: the head the user reviewed; GitLab refuses (409) if it moved.
+    case merge(project: Int, iid: Int, sha: String?)
     case close(project: Int, iid: Int)
+
+    /// Changes something (vs. reading): a 401 here is a permission answer,
+    /// not necessarily a bad token.
+    public var isAction: Bool {
+        switch self {
+        case .user, .mergeRequests, .mergeRequest, .diffs, .discussions: return false
+        case .approve, .note, .lineComment, .merge, .close: return true
+        }
+    }
 }
 
 /// Builds GitLab REST v4 requests. The token travels only in the
@@ -83,8 +93,8 @@ public struct GitLabAPI: Sendable {
                 position["new_line"] = line.newNumber
             }
             return ("POST", mr(p, i) + "/discussions", [], ["body": body, "position": position])
-        case .merge(let p, let i):
-            return ("PUT", mr(p, i) + "/merge", [], nil)
+        case .merge(let p, let i, let sha):
+            return ("PUT", mr(p, i) + "/merge", [], sha.map { ["sha": $0] })
         case .close(let p, let i):
             return ("PUT", mr(p, i), [], ["state_event": "close"])
         }

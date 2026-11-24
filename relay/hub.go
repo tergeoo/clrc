@@ -66,6 +66,9 @@ type Hub struct {
 	pushRegistry *PushRegistry
 	pushSender   PushSender
 
+	// request_id → chan replyAck for /chat/reply waiting on the agent.
+	pendingReplies sync.Map
+
 	// request_id → ClientConn for any pending async response (sessions_list, fs_*)
 	pendingRequests sync.Map
 }
@@ -433,6 +436,15 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 					routeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					cl.Send(routeCtx, websocket.MessageText, respData)
 					cancel()
+				}
+			case "chat_send_result":
+				var ack replyAck
+				json.Unmarshal(textMsg.Payload, &ack)
+				if v, ok := hub.pendingReplies.LoadAndDelete(ack.RequestID); ok {
+					select {
+					case v.(chan replyAck) <- ack:
+					default:
+					}
 				}
 			case "chat_event":
 				var pl struct {

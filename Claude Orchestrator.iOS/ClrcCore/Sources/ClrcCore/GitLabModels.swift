@@ -15,6 +15,12 @@ public struct GitLabUser: Decodable, Equatable, Sendable {
 public struct GitLabPipeline: Decodable, Equatable, Sendable {
     public let status: String
     public let webURL: String?
+
+    /// `web_url` arrives as `webUrl` after snake-case conversion.
+    enum CodingKeys: String, CodingKey {
+        case status
+        case webURL = "webUrl"
+    }
 }
 
 public struct GitLabDiffRefs: Decodable, Equatable, Sendable {

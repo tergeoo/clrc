@@ -92,3 +92,50 @@ func TestChatReplyValidatesInput(t *testing.T) {
 		t.Errorf("GET: %d", rec.Code)
 	}
 }
+
+// Review fix: a reply must not report success when the agent has no such chat.
+func TestChatReplyWaitsForAgentAck(t *testing.T) {
+	hub, auth, agent, _ := connectPairWithAuth(t)
+	token, _ := auth.GenerateAccessToken()
+	h := ChatReplyHandler(hub, auth)
+
+	for _, tc := range []struct {
+		ack  map[string]any
+		want int
+	}{
+		{map[string]any{"ok": true}, http.StatusOK},
+		{map[string]any{"ok": false, "error": "unknown chat session"}, http.StatusConflict},
+	} {
+		done := make(chan *httptest.ResponseRecorder, 1)
+		go func() { done <- postReply(t, h, token, replyBody("1")) }()
+		msg := readUntil(t, agent, "chat_send")
+		var pl map[string]any
+		json.Unmarshal(msg.Payload, &pl)
+		reqID, _ := pl["request_id"].(string)
+		if reqID == "" {
+			t.Fatal("chat_send from /chat/reply carries no request_id")
+		}
+		ack := map[string]any{"request_id": reqID}
+		for k, v := range tc.ack {
+			ack[k] = v
+		}
+		writeMsg(t, agent, "chat_send_result", ack)
+		if rec := <-done; rec.Code != tc.want {
+			t.Errorf("ack %v: status %d, want %d", tc.ack, rec.Code, tc.want)
+		}
+	}
+}
+
+func TestChatReplyWithoutAckFromOlderAgentIsAccepted(t *testing.T) {
+	hub, auth, agent, _ := connectPairWithAuth(t)
+	token, _ := auth.GenerateAccessToken()
+	start := time.Now()
+	rec := postReply(t, ChatReplyHandler(hub, auth), token, replyBody("1"))
+	readUntil(t, agent, "chat_send")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"confirmed":false`) {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	if time.Since(start) > replyAckTimeout+2*time.Second {
+		t.Fatal("waited too long for an ack")
+	}
+}

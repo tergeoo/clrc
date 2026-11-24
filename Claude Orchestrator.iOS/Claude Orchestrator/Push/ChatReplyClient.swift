@@ -4,6 +4,7 @@ import ClrcCore
 enum ChatReplyError: LocalizedError {
     case notSignedIn
     case agentOffline
+    case chatGone
     case failed(Int)
     case unreachable
 
@@ -11,6 +12,7 @@ enum ChatReplyError: LocalizedError {
         switch self {
         case .notSignedIn: return "Войдите в приложение, чтобы отвечать из уведомлений"
         case .agentOffline: return "Мак не в сети — ответ не отправлен"
+        case .chatGone: return "Этого чата на Маке уже нет — ответ не отправлен"
         case .failed(let code): return "Ответ не отправлен (\(code))"
         case .unreachable: return "Relay не отвечает — ответ не отправлен"
         }
@@ -37,6 +39,7 @@ struct ChatReplyClient {
         case 200: return
         case 401: throw ChatReplyError.notSignedIn
         case 404: throw ChatReplyError.agentOffline
+        case 409: throw ChatReplyError.chatGone
         default: throw ChatReplyError.failed(status)
         }
     }

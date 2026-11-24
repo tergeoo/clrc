@@ -61,11 +61,12 @@ struct MergeRequestScreen: View {
         .alert("Комментарий", isPresented: $composing) {
             TextField("Текст", text: $comment, axis: .vertical)
             Button("Отправить") { Task { await perform(.note(project: route.projectID, iid: route.iid, body: comment), done: "Комментарий отправлен") } }
+                .disabled(comment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Отмена", role: .cancel) {}
         }
         .confirmationDialog(confirmTitle, isPresented: confirmShown, titleVisibility: .visible) {
             if confirm == .merge {
-                Button("Слить", role: .destructive) { Task { await perform(.merge(project: route.projectID, iid: route.iid), done: "MR слит") } }
+                Button("Слить", role: .destructive) { Task { await perform(.merge(project: route.projectID, iid: route.iid, sha: mr?.diffRefs?.headSHA), done: "MR слит") } }
             } else {
                 Button("Закрыть MR", role: .destructive) { Task { await perform(.close(project: route.projectID, iid: route.iid), done: "MR закрыт") } }
             }

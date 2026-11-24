@@ -29,7 +29,7 @@ private func body(_ request: URLRequest) -> [String: Any] {
     let approve = api.request(.approve(project: 42, iid: 7))
     #expect(approve.httpMethod == "POST")
     #expect(approve.url?.path == "/api/v4/projects/42/merge_requests/7/approve")
-    let merge = api.request(.merge(project: 42, iid: 7))
+    let merge = api.request(.merge(project: 42, iid: 7, sha: nil))
     #expect(merge.httpMethod == "PUT" && merge.url?.path == "/api/v4/projects/42/merge_requests/7/merge")
     let close = api.request(.close(project: 42, iid: 7))
     #expect(close.httpMethod == "PUT" && body(close)["state_event"] as? String == "close")
@@ -116,4 +116,24 @@ private func body(_ request: URLRequest) -> [String: Any] {
     #expect(map["n2"]?.map(\.id) == [1])
     #expect(map["o5"]?.map(\.id) == [3])
     #expect(map.count == 2)
+}
+
+// Review fixes ----------------------------------------------------------------
+
+@Test func mergePinsTheReviewedHead() {
+    let merge = api.request(.merge(project: 42, iid: 7, sha: "abc123"))
+    #expect(merge.httpMethod == "PUT")
+    #expect(body(merge)["sha"] as? String == "abc123")
+    #expect(body(api.request(.merge(project: 42, iid: 7, sha: nil))).isEmpty)
+}
+
+@Test func pipelineWebURLDecodes() throws {
+    let p = try GitLabJSON.decoder.decode(GitLabPipeline.self, from: Data(#"{"status":"failed","web_url":"https://g/p/9"}"#.utf8))
+    #expect(p.webURL == "https://g/p/9")
+}
+
+@Test func actionEndpointsAreKnown() {
+    #expect(!GitLabEndpoint.mergeRequests(.all).isAction)
+    #expect(GitLabEndpoint.approve(project: 1, iid: 2).isAction)
+    #expect(GitLabEndpoint.merge(project: 1, iid: 2, sha: nil).isAction)
 }

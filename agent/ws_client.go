@@ -471,17 +471,35 @@ func (c *WSClient) handleChatSend(payload json.RawMessage) {
 	var req struct {
 		SessionID string `json:"session_id"`
 		Text      string `json:"text"`
+		// Set by the relay for replies from notifications, which wait for
+		// chat_send_result; plain socket sends carry none and get no reply.
+		RequestID string `json:"request_id"`
 	}
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return
 	}
 	sess := c.chatSession(req.SessionID)
-	if sess == nil {
-		return
+	var err error
+	if sess != nil {
+		if err = sess.Send(req.Text); err != nil {
+			log.Printf("chat_send failed for %s: %v", req.SessionID, err)
+		}
 	}
-	if err := sess.Send(req.Text); err != nil {
-		log.Printf("chat_send failed for %s: %v", req.SessionID, err)
+	if req.RequestID != "" {
+		c.sendTextMsg(context.Background(), "chat_send_result", chatSendAck(req.RequestID, sess != nil, err))
 	}
+}
+
+// chatSendAck is the chat_send_result for a request that asked for one.
+func chatSendAck(requestID string, found bool, err error) map[string]any {
+	ack := map[string]any{"request_id": requestID, "ok": found && err == nil}
+	switch {
+	case !found:
+		ack["error"] = "unknown chat session"
+	case err != nil:
+		ack["error"] = err.Error()
+	}
+	return ack
 }
 
 func (c *WSClient) handleChatInterrupt(payload json.RawMessage) {

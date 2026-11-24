@@ -47,6 +47,7 @@ struct SettingsScreen: View {
                 Button("Выйти", role: .destructive) {
                     // Drop the socket too: the relay then detaches, so the
                     // PTYs keep running and reattach after the next sign-in.
+                    PushManager.shared.unregister()
                     relay.disconnect()
                     authService.logout()
                 }
