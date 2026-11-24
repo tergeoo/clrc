@@ -31,4 +31,18 @@ struct SessionLaunchModeTests {
         let cmd = SessionLaunchMode.terminalCommand(cwd: "/Users/me/it's; rm -rf ~")
         #expect(cmd == "cd '/Users/me/it'\\''s; rm -rf ~' && claude")
     }
+
+    @Test("Terminal command passes the task to claude, quoted literally")
+    func terminalPromptIsShellQuoted() {
+        #expect(SessionLaunchMode.terminalCommand(cwd: "/u/it's", prompt: #"fix "$HOME" now"#)
+                == #"cd '/u/it'\''s' && claude 'fix "$HOME" now'"#)
+        #expect(SessionLaunchMode.terminalCommand(cwd: nil, prompt: "a'b") == #"claude 'a'\''b'"#)
+        #expect(SessionLaunchMode.terminalCommand(cwd: "/u/api", prompt: nil) == "cd '/u/api' && claude")
+    }
+
+    @Test("A prompt keeps the project path readable for session naming")
+    func promptKeepsProjectPath() {
+        let cmd = SessionLaunchMode.terminalCommand(cwd: "/u/api", prompt: "почини тесты")
+        #expect(SessionNaming.projectPath(from: cmd) == "/u/api")
+    }
 }

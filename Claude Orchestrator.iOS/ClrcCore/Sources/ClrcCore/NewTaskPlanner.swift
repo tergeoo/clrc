@@ -1,0 +1,48 @@
+import Foundation
+
+/// Everything needed to start one session from the New Task sheet.
+public struct LaunchRequest: Sendable, Equatable {
+    public let agentID: String
+    /// nil = the Mac user's home folder.
+    public let cwd: String?
+    public let mode: SessionLaunchMode
+    /// The first message for Claude; nil starts the session without one.
+    public let prompt: String?
+    public let name: String
+    public let model: String?
+    public let profile: String?
+}
+
+public enum NewTaskPlanner {
+    public static let templates = ["Почини тесты", "Сделай ревью ветки", "Объясни код", "Обнови зависимости"]
+    static let fallbackName = "claude"
+
+    /// The Mac preselected in the sheet: the preferred one if online, else
+    /// the Mac of the most recent project, else the first online Mac.
+    public static func defaultAgentID(onlineAgentIDs: [String], preferred: String?,
+                                      lastProjectAgentID: String?) -> String? {
+        if let preferred, onlineAgentIDs.contains(preferred) { return preferred }
+        if let last = lastProjectAgentID, onlineAgentIDs.contains(last) { return last }
+        return onlineAgentIDs.first
+    }
+
+    /// Normalizes the sheet's raw inputs: blanks become nil, `~` means home,
+    /// the name falls back to the project folder, the profile must be valid.
+    public static func request(agentID: String, cwd: String?, mode: SessionLaunchMode, prompt: String,
+                               customName: String, model: String, profile: String) -> LaunchRequest {
+        let folder = (cwd == "~" || cwd?.isEmpty == true) ? nil : cwd
+        let name = nonEmpty(customName) ?? folder.map { ($0 as NSString).lastPathComponent } ?? fallbackName
+        return LaunchRequest(agentID: agentID, cwd: folder, mode: mode, prompt: nonEmpty(prompt),
+                             name: name, model: nonEmpty(model), profile: normalizedProfile(profile))
+    }
+
+    /// Tapping a recent project launches at once only when no task was typed.
+    public static func launchesOnProjectTap(prompt: String) -> Bool {
+        nonEmpty(prompt) == nil
+    }
+
+    private static func nonEmpty(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}

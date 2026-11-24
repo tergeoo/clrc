@@ -38,8 +38,20 @@ public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
     /// single-quoted so spaces and shell metacharacters in folder names stay
     /// literal; `~` or no path starts in the shell's home folder.
     public static func terminalCommand(cwd: String?) -> String {
-        guard let cwd, !cwd.isEmpty, cwd != "~" else { return "claude" }
-        let quoted = "'" + cwd.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        return "cd \(quoted) && claude"
+        terminalCommand(cwd: cwd, prompt: nil)
+    }
+
+    /// Like `terminalCommand(cwd:)`, also handing `prompt` to `claude` as its
+    /// first message. The prompt is single-quoted the same way, so quotes,
+    /// `$` and newlines reach Claude literally.
+    public static func terminalCommand(cwd: String?, prompt: String?) -> String {
+        var claude = "claude"
+        if let prompt, !prompt.isEmpty { claude += " " + shellQuoted(prompt) }
+        guard let cwd, !cwd.isEmpty, cwd != "~" else { return claude }
+        return "cd \(shellQuoted(cwd)) && \(claude)"
+    }
+
+    private static func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
