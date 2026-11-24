@@ -56,3 +56,21 @@ struct ChatPersistenceTests {
         #expect(plan.chatReattaches.first?.afterSeq == 7)
     }
 }
+
+// Review fix: restarting a plain «Терминал здесь» shell must not start Claude.
+@Test func restartRepeatsTheStoredCommand() throws {
+    let shell = PersistedSession(id: "s", agentID: "m", agentName: "mac", customName: "zsh",
+                                 projectPath: "/u/api", command: "cd '/u/api'")
+    #expect(shell.restartCommand == "cd '/u/api'")
+    let data = try JSONEncoder().encode(shell)
+    #expect(try JSONDecoder().decode(PersistedSession.self, from: data).command == "cd '/u/api'")
+}
+
+@Test func legacyEntriesWithoutCommandRestartClaudeInTheirFolder() throws {
+    let json = #"{"id":"a","agentID":"m","agentName":"mac","customName":"x","createdAt":0,"projectPath":"~/dev/api"}"#
+    let entry = try JSONDecoder().decode(PersistedSession.self, from: Data(json.utf8))
+    #expect(entry.command == nil)
+    #expect(entry.restartCommand == "cd ~/'dev/api' && claude")
+    let bare = PersistedSession(id: "b", agentID: "m", agentName: "mac", customName: "x")
+    #expect(bare.restartCommand == nil)
+}

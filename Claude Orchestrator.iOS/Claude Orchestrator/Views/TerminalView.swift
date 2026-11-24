@@ -36,6 +36,16 @@ import ClrcCore
 /// scroll to. This fix restores scrolling for normal shell output and after such a program exits
 /// and the view returns to the primary buffer.
 final class ScrollableTerminalView: SwiftTerm.TerminalView {
+    /// SwiftTerm focuses itself on any tap or long press. In view mode the
+    /// keyboard must stay down (spec 5.6), so focus is refused unless
+    /// «⌨︎ Клавиатура» allowed it.
+    var keyboardAllowed = false
+
+    override func becomeFirstResponder() -> Bool {
+        guard keyboardAllowed else { return false }
+        return super.becomeFirstResponder()
+    }
+
     override func mouseModeChanged(source: Terminal) {
         // Deliberately not calling super — see the class doc above for why this alone is enough
         // to keep the mouse-pan gesture recognizer from ever being attached.
@@ -65,7 +75,7 @@ struct RemoteTerminalView: UIViewRepresentable {
         // TerminalScreen draws its own single row of special keys.
         tv.inputAccessoryView = nil
 
-        session.terminalView = tv
+        session.attach(tv)
 
         relay.registerSessionHandler(sessionID: session.id) { [weak session] _, data in
             DispatchQueue.main.async { session?.receive(data) }

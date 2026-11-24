@@ -8,6 +8,8 @@ public struct FileText: Equatable, Sendable {
 
     public let text: String
     public let truncated: Bool
+    /// Split once: search and rendering read it per line.
+    public let lines: [String]
 
     /// Decodes leniently: a cut can split a multi-byte character, and a
     /// strict decoder would then reject the whole file. The replacement
@@ -19,9 +21,8 @@ public struct FileText: Equatable, Sendable {
             while text.hasSuffix("\u{FFFD}") { text.removeLast() }
         }
         self.text = text
+        lines = text.components(separatedBy: "\n")
     }
-
-    public var lines: [String] { text.components(separatedBy: "\n") }
 
     /// 0-based indices of lines containing `query`, ignoring case.
     public func matchingLines(_ query: String) -> [Int] {

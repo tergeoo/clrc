@@ -245,7 +245,8 @@ final class SessionManager: ObservableObject {
             agentID: agent.id,
             agentName: agent.name,
             customName: name,
-            projectPath: projectPath
+            projectPath: projectPath,
+            command: initialCommand
         ))
         if let projectPath {
             store.addRecentProject(projectPath, agentID: agent.id)
@@ -381,11 +382,12 @@ final class SessionManager: ObservableObject {
             sessionID: sessionID,
             customName: name
         )
+        let existing = store.sessions.first { $0.id == sessionID }
+        session.storedProjectPath = existing?.projectPath
         sessions.append(session)
         tombstones.removeAll { $0.id == sessionID }
 
         // Preserve an existing store entry's projectPath if we have one.
-        let existing = store.sessions.first { $0.id == sessionID }
         store.upsert(PersistedSession(
             id: sessionID,
             agentID: agentID,
@@ -439,6 +441,18 @@ final class SessionManager: ObservableObject {
         sessions.removeAll { $0.id == session.id }
     }
 
+    /// The PTY is gone on the Mac: keep the session as «Сессия завершена»
+    /// with its saved entry so it can be restarted.
+    func markEnded(_ session: TerminalSession) {
+        guard sessions.contains(where: { $0.id == session.id }) else { return }
+        relay.unregisterSessionHandler(sessionID: session.id)
+        sessions.removeAll { $0.id == session.id }
+        let entry = store.sessions.first { $0.id == session.id } ?? PersistedSession(
+            id: session.id, agentID: session.agent.id, agentName: session.agent.name,
+            customName: session.customName, projectPath: session.projectPath, command: session.initialCommand)
+        if !tombstones.contains(where: { $0.id == entry.id }) { tombstones.append(entry) }
+    }
+
     func closeAll() {
         for session in sessions {
             close(session)
@@ -451,11 +465,9 @@ final class SessionManager: ObservableObject {
     func restartTombstone(_ tombstone: PersistedSession) {
         guard let agent = agentFor(id: tombstone.agentID) else { return } // offline: keep the tombstone
         removeTombstone(id: tombstone.id)
-        if let path = tombstone.projectPath {
-            createSession(for: agent, initialCommand: "cd \"\(path)\" && claude")
-        } else {
-            createSession(for: agent)
-        }
+        // Repeat what the session ran: a «Терминал здесь» shell stays a
+        // shell; older entries without a command restart Claude as before.
+        createSession(for: agent, initialCommand: tombstone.restartCommand)
     }
 
     /// Restarts an ended session by its id, if it is still listed.

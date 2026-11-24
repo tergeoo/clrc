@@ -69,6 +69,10 @@ struct FolderBrowser: View {
         }
         .safeAreaInset(edge: .bottom) { pickBar }
         .task(id: path) { await load() }
+        .onChange(of: path) { _, _ in
+            items = []
+            error = nil
+        }
         .refreshable { await load() }
         .alert("Новая папка", isPresented: $creatingFolder) {
             TextField("Имя", text: $newFolderName)
@@ -76,7 +80,13 @@ struct FolderBrowser: View {
             Button("Отмена", role: .cancel) {}
         }
         .confirmationDialog(deleteTitle, isPresented: deleteShown, titleVisibility: .visible) {
-            Button("Удалить", role: .destructive) { Task { await deleteTargetItem() } }
+            // Capture now: closing the dialog clears `deleteTarget` before
+            // the task runs.
+            Button("Удалить", role: .destructive) {
+                guard let item = deleteTarget else { return }
+                let folder = path
+                Task { await delete(item, in: folder) }
+            }
         } message: {
             Text("Это нельзя отменить.")
         }
@@ -147,12 +157,18 @@ struct FolderBrowser: View {
             items = FSListing.sorted(preloaded)
             return
         }
+        let requested = path
         loading = true
         defer { loading = false }
         do {
-            items = try await client.list(agentID: agentID, path: path).items
+            let listed = try await client.list(agentID: agentID, path: requested).items
+            // A slower reply for a folder the user already left must not
+            // replace this one: rows and delete join names onto `path`.
+            guard requested == path, !Task.isCancelled else { return }
+            items = listed
             error = nil
         } catch {
+            guard requested == path else { return }
             self.error = error.localizedDescription
         }
     }
@@ -163,10 +179,8 @@ struct FolderBrowser: View {
         await perform { try await client.mkdir(agentID: agentID, path: PathCrumbs.join(path, name)) }
     }
 
-    private func deleteTargetItem() async {
-        guard let item = deleteTarget else { return }
-        deleteTarget = nil
-        await perform { try await client.delete(agentID: agentID, path: PathCrumbs.join(path, item.name)) }
+    private func delete(_ item: FSItem, in folder: String) async {
+        await perform { try await client.delete(agentID: agentID, path: PathCrumbs.join(folder, item.name)) }
     }
 
     private func perform(_ action: () async throws -> Void) async {

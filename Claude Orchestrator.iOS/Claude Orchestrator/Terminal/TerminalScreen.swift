@@ -19,6 +19,7 @@ enum TerminalChrome {
 struct TerminalScreen: View {
     @ObservedObject var session: TerminalSession
     @EnvironmentObject var relay: RelayWebSocket
+    @EnvironmentObject var sessionManager: SessionManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var keyboardVisible = false
@@ -33,21 +34,25 @@ struct TerminalScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ZStack {
-                RemoteTerminalView(session: session)
-                    .id(session.id)
-                if reconnecting { ReconnectOverlay() }
+            Group {
+                ZStack {
+                    RemoteTerminalView(session: session)
+                        .id(session.id)
+                    if reconnecting { ReconnectOverlay() }
+                }
+                if keyboardVisible {
+                    SpecialKeysRow(ctrlOn: ctrlOn, send: sendKey, toggleCtrl: toggleCtrl, hide: hideKeyboard)
+                } else {
+                    TerminalViewBar(openKeyboard: openKeyboard,
+                                    interrupt: { send(TerminalKeys.interrupt) },
+                                    historyUp: { send(TerminalKeys.historyUp) },
+                                    commands: { showCommands = true })
+                }
             }
-            if keyboardVisible {
-                SpecialKeysRow(ctrlOn: ctrlOn, send: sendKey, toggleCtrl: toggleCtrl, hide: hideKeyboard)
-            } else {
-                TerminalViewBar(openKeyboard: openKeyboard,
-                                interrupt: { send(TerminalKeys.interrupt) },
-                                historyUp: { send(TerminalKeys.historyUp) },
-                                commands: { showCommands = true })
-            }
+            // The header (back) stays usable: the Mac may never come back.
+            .disabled(reconnecting)
         }
-        .disabled(reconnecting)
+        .task(id: reconnecting) { await checkStillRunning() }
         .background(Palette.code)
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)
@@ -62,6 +67,7 @@ struct TerminalScreen: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardVisible = false
+            (session.terminalView as? ScrollableTerminalView)?.keyboardAllowed = false
         }
         .onReceive(NotificationCenter.default.publisher(for: Self.controlResetNotification)) { _ in
             ctrlOn = false
@@ -125,11 +131,23 @@ struct TerminalScreen: View {
     }
 
     private func openKeyboard() {
-        _ = session.terminalView?.becomeFirstResponder()
+        guard let tv = session.terminalView as? ScrollableTerminalView else { return }
+        tv.keyboardAllowed = true
+        _ = tv.becomeFirstResponder()
     }
 
     private func hideKeyboard() {
         _ = session.terminalView?.resignFirstResponder()
+    }
+
+    /// The agent says nothing when a PTY exits; ask which sessions it still
+    /// runs and show «Сессия завершена» if this one is gone (spec 5.6).
+    private func checkStillRunning() async {
+        guard !reconnecting else { return }
+        relay.requestSessionList(agentID: session.agent.id) { running in
+            guard let running, !running.contains(where: { $0.id == session.id }) else { return }
+            sessionManager.markEnded(session)
+        }
     }
 }
 

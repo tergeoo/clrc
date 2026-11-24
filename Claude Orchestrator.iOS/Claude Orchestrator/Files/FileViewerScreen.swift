@@ -57,12 +57,14 @@ struct FileContentView: View {
     @State private var searching = false
     @State private var query = ""
     @State private var matchIndex = 0
+    /// Matching line indices, recomputed only when the query changes.
+    @State private var matches: [Int] = []
+    @State private var matchSet: Set<Int> = []
     @State private var askClaude = false
     @State private var copied = false
 
     private var folder: String { (path as NSString).deletingLastPathComponent }
     private var isMarkdown: Bool { FileText.isMarkdown(path) }
-    private var matches: [Int] { file.matchingLines(query) }
     private var gutterWidth: CGFloat { CGFloat(String(file.lines.count).count) * 8 + 12 }
 
     var body: some View {
@@ -134,7 +136,9 @@ struct FileContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Palette.code)
             .onChange(of: matchIndex) { _, _ in scroll(proxy) }
-            .onChange(of: query) { _, _ in
+            .onChange(of: query) { _, newQuery in
+                matches = file.matchingLines(newQuery)
+                matchSet = Set(matches)
                 matchIndex = 0
                 scroll(proxy)
             }
@@ -142,7 +146,7 @@ struct FileContentView: View {
     }
 
     private func highlight(_ index: Int) -> Color {
-        guard !matches.isEmpty, matches.contains(index) else { return .clear }
+        guard matchSet.contains(index) else { return .clear }
         return matches[min(matchIndex, matches.count - 1)] == index
             ? Palette.tint.opacity(0.45) : Palette.tint.opacity(0.2)
     }

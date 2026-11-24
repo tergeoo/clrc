@@ -40,7 +40,15 @@ public enum ShellCommand {
     /// `~` means the home folder.
     public static func cd(_ path: String?) -> String {
         guard let path, !path.isEmpty, path != "~" else { return "cd ~" }
-        return "cd " + quoted(path)
+        return "cd " + quotedPath(path)
+    }
+
+    /// Quotes a path but leaves a leading `~` / `~/` outside the quotes, so
+    /// the shell still expands it to the home folder.
+    public static func quotedPath(_ path: String) -> String {
+        if path == "~" { return "~" }
+        if path.hasPrefix("~/") { return "~/" + quoted(String(path.dropFirst(2))) }
+        return quoted(path)
     }
 
     /// Single-quotes `text` for a POSIX shell.

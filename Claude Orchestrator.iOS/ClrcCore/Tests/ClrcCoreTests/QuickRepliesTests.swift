@@ -27,3 +27,17 @@ import Testing
     #expect(ShellCommand.cd("~") == "cd ~")
     #expect(ShellCommand.cd("") == "cd ~")
 }
+
+// Review fix: «~/x» must stay expandable — a quoted tilde is literal to the shell.
+@Test func cdKeepsTildeOutsideQuotes() {
+    #expect(ShellCommand.cd("~/dev/my app") == #"cd ~/'dev/my app'"#)
+    #expect(ShellCommand.quotedPath("~") == "~")
+    #expect(ShellCommand.quotedPath("~/a'b") == #"~/'a'\''b'"#)
+    #expect(ShellCommand.quotedPath("/u/x") == "'/u/x'")
+}
+
+@Test func terminalCommandKeepsTildeOutsideQuotes() {
+    #expect(SessionLaunchMode.terminalCommand(cwd: "~/dev/api", prompt: nil) == "cd ~/'dev/api' && claude")
+    #expect(SessionNaming.projectPath(from: SessionLaunchMode.terminalCommand(cwd: "~/dev/api", prompt: nil)) == "~/dev/api")
+    #expect(SessionNaming.projectPath(from: ShellCommand.cd("~/dev/api")) == "~/dev/api")
+}

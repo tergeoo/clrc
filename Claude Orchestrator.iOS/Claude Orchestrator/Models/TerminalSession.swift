@@ -23,8 +23,20 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
         case working(toolsUsed: Int)
     }
 
-    // The SwiftTerm terminal view — set after the view is created
-    weak var terminalView: SwiftTerm.TerminalView?
+    /// Every on-screen view of this session (it can be open in the Inbox
+    /// and Projects stacks at once); output goes to all of them.
+    private var views: [WeakTerminalView] = []
+
+    /// The most recently attached live view: target of keyboard and Ctrl.
+    var terminalView: SwiftTerm.TerminalView? { views.last(where: { $0.view != nil })?.view }
+
+    /// Set for sessions restored or attached by id, whose command is unknown.
+    var storedProjectPath: String?
+
+    func attach(_ view: SwiftTerm.TerminalView) {
+        views.removeAll { $0.view == nil || $0.view === view }
+        views.append(WeakTerminalView(view: view))
+    }
 
     // Last known terminal size — used to restore after reconnect
     var lastCols: Int = 80
@@ -34,7 +46,7 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     let initialCommand: String?
 
     /// The folder this session was started in, when its command said so.
-    var projectPath: String? { SessionNaming.projectPath(from: initialCommand) }
+    var projectPath: String? { SessionNaming.projectPath(from: initialCommand) ?? storedProjectPath }
 
     // Output parsing state
     private var outputBuffer = ""
@@ -73,9 +85,10 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
 
     /// Feed raw terminal bytes into SwiftTerm and parse for activity events.
     func receive(_ data: Data) {
-        guard let tv = terminalView else { return }
         let bytes = [UInt8](data)
-        tv.feed(byteArray: bytes[...])
+        for box in views {
+            box.view?.feed(byteArray: bytes[...])
+        }
         parseOutput(data)
     }
 
@@ -169,4 +182,8 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
         let range = NSRange(location: 0, length: (text as NSString).length)
         return Self.ansiPattern.stringByReplacingMatches(in: text, range: range, withTemplate: "")
     }
+}
+
+private struct WeakTerminalView {
+    weak var view: SwiftTerm.TerminalView?
 }

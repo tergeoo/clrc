@@ -48,6 +48,6 @@ public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
         var claude = "claude"
         if let prompt, !prompt.isEmpty { claude += " " + ShellCommand.quoted(prompt) }
         guard let cwd, !cwd.isEmpty, cwd != "~" else { return claude }
-        return "cd \(ShellCommand.quoted(cwd)) && \(claude)"
+        return "cd \(ShellCommand.quotedPath(cwd)) && \(claude)"
     }
 }

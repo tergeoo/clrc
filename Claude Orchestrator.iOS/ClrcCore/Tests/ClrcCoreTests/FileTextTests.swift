@@ -37,3 +37,13 @@ import Foundation
     #expect(FileText.isMarkdown("notes.MARKDOWN"))
     #expect(!FileText.isMarkdown("main.go"))
 }
+
+// Review fix: search re-split the file per line (O(n²)); 20k lines took minutes.
+@Test func searchingALargeFileIsFast() {
+    let body = (0..<20_000).map { "line \($0) value" }.joined(separator: "\n")
+    let file = FileText(data: Data(body.utf8))
+    let start = Date()
+    #expect(file.matchingLines("value 1").isEmpty)
+    #expect(file.matchingLines("line 19999").count == 1)
+    #expect(Date().timeIntervalSince(start) < 2)
+}

@@ -20,10 +20,20 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
     public let kind: Kind
     /// Chat sessions only: the working directory sent in `connect`.
     public let cwd: String?
+    /// Terminals: the command the session was started with, repeated on
+    /// restart. nil for entries saved before it was recorded.
+    public let command: String?
+
+    /// What «Перезапустить» runs: the stored command; for older entries,
+    /// Claude in their project folder (the previous behaviour).
+    public var restartCommand: String? {
+        if let command, !command.isEmpty { return command }
+        return projectPath.map { SessionLaunchMode.terminalCommand(cwd: $0) }
+    }
 
     public init(id: String, agentID: String, agentName: String,
                 customName: String, projectPath: String? = nil, createdAt: Date = Date(),
-                kind: Kind = .pty, cwd: String? = nil) {
+                kind: Kind = .pty, cwd: String? = nil, command: String? = nil) {
         self.id = id
         self.agentID = agentID
         self.agentName = agentName
@@ -32,10 +42,11 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         self.createdAt = createdAt
         self.kind = kind
         self.cwd = cwd
+        self.command = command
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd
+        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd, command
     }
 
     public init(from decoder: Decoder) throws {
@@ -48,5 +59,6 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .pty
         cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
+        command = try c.decodeIfPresent(String.self, forKey: .command)
     }
 }
