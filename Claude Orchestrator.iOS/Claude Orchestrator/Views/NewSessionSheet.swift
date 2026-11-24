@@ -175,17 +175,7 @@ struct NewSessionSheet: View {
 
     private func start(in path: String?, agent: Agent) {
         let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if claudeInTerminal {
-            sessionManager.createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: path))
-            renameIfNeeded()
-            dismiss()
-            return
-        }
-        sessionManager.createChatSession(
-            for: agent,
-            cwd: path ?? "~",
-            name: name.isEmpty ? (path as NSString?)?.lastPathComponent ?? "claude" : name
-        )
+        sessionManager.startClaude(for: agent, cwd: path, name: name)
         dismiss()
     }
 

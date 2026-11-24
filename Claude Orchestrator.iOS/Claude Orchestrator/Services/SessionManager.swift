@@ -184,16 +184,14 @@ final class SessionManager: ObservableObject {
     // MARK: - Restore
 
     /// Match persisted sessions against the agent's live PTYs:
-    /// reattach the alive ones, tombstone the dead ones,
-    /// auto-create a first tab only when there is nothing to restore.
+    /// reattach the alive ones, tombstone the dead ones. Nothing is created
+    /// automatically: new sessions start from the New Session sheet, where the
+    /// user picks chat, brief or terminal.
     private func reconcile(_ agent: Agent) {
         let alreadyLive = Set(sessions.map(\.id))
         let persisted = store.sessions(forAgent: agent.id).filter { !alreadyLive.contains($0.id) }
 
-        guard !persisted.isEmpty else {
-            autoCreateIfEmpty(for: agent)
-            return
-        }
+        guard !persisted.isEmpty else { return }
 
         relay.requestSessionList(agentID: agent.id) { [weak self] remote in
             guard let self else { return }
@@ -215,15 +213,6 @@ final class SessionManager: ObservableObject {
             }
             let known = Set(self.tombstones.map(\.id))
             self.tombstones += plan.tombstones.filter { !known.contains($0.id) }
-            self.autoCreateIfEmpty(for: agent)
-        }
-    }
-
-    private func autoCreateIfEmpty(for agent: Agent) {
-        let hasAny = sessions.contains { $0.agent.id == agent.id }
-            || !tombstones.filter { $0.agentID == agent.id }.isEmpty
-        if !hasAny {
-            createSession(for: agent)
         }
     }
 
@@ -247,6 +236,19 @@ final class SessionManager: ObservableObject {
             store.addRecentProject(projectPath, agentID: agent.id)
         }
         relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24, name: name)
+    }
+
+    /// Starts Claude in `cwd` the way the user last chose in the New Session
+    /// sheet: a chat session (chat or brief display) or `claude` in a terminal.
+    func startClaude(for agent: Agent, cwd: String?, name: String?) {
+        let defaults = UserDefaults.standard
+        if defaults.bool(forKey: SessionLaunchMode.terminalStorageKey) {
+            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: cwd))
+            if let name, !name.isEmpty, let created = sessions.last { rename(created, to: name) }
+            return
+        }
+        let fallback = cwd.map { ($0 as NSString).lastPathComponent } ?? "claude"
+        createChatSession(for: agent, cwd: cwd ?? "~", name: (name?.isEmpty == false ? name : nil) ?? fallback)
     }
 
     func createChatSession(for agent: Agent, cwd: String, name: String) {

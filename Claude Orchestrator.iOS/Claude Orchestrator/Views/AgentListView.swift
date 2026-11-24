@@ -10,6 +10,8 @@ struct AgentListView: View {
     @State private var selectedAgent: Agent?
     @State private var existingSessions: [RemoteSessionInfo] = []
     @State private var isLoadingSessions = false
+    /// Set after the picker's "new session" to open the New Session sheet.
+    @State private var newSessionAgent: Agent?
 
     var body: some View {
         NavigationView {
@@ -56,11 +58,20 @@ struct AgentListView: View {
                         customName: picked.name
                     )
                 } else {
-                    sessionManager.createSession(for: agent)
+                    // Let the picker finish dismissing before presenting the
+                    // next sheet — simultaneous presentations drop one.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        newSessionAgent = agent
+                    }
                 }
             }
             .environmentObject(relay)
             .environmentObject(sessionManager)
+        }
+        .sheet(item: $newSessionAgent) { agent in
+            NewSessionSheet(preferredAgentID: agent.id)
+                .environmentObject(relay)
+                .environmentObject(sessionManager)
         }
     }
 

@@ -21,6 +21,8 @@ struct SessionTabsView: View {
     @State private var showSettings = false
     @State private var showAddAgent = false
     @State private var showNewSession = false
+    /// The Mac to preselect in the New Session sheet; nil = the active session's.
+    @State private var newSessionAgentID: String?
 
     var activeSession: TerminalSession? {
         sessionManager.sessions.first(where: { $0.id == selectedSessionID })
@@ -70,6 +72,13 @@ struct SessionTabsView: View {
                         showAddAgent = true
                     }
                 },
+                onNewSession: { agent in
+                    showMachineSelector = false
+                    newSessionAgentID = agent.id
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showNewSession = true
+                    }
+                },
                 onDismiss: { showMachineSelector = false }
             )
             .environmentObject(relay)
@@ -89,21 +98,15 @@ struct SessionTabsView: View {
                 .environmentObject(authService)
         }
         .sheet(isPresented: $showNewSession) {
-            NewSessionSheet(preferredAgentID: activeSession?.agent.id)
+            NewSessionSheet(preferredAgentID: newSessionAgentID ?? activeSession?.agent.id)
                 .environmentObject(relay)
                 .environmentObject(sessionManager)
         }
-        .onChange(of: sessionManager.sessions) { _, sessions in
-            if let last = sessions.last,
-               selectedSessionID == nil || !sessions.contains(where: { $0.id == selectedSessionID }) {
-                selectedSessionID = last.id
-            }
+        .onChange(of: sessionManager.sessions) { old, new in
+            updateSelection(added: new.map(\.id).filter { id in !old.contains { $0.id == id } })
         }
-        .onChange(of: sessionManager.chatSessions) { _, chats in
-            if let last = chats.last,
-               selectedSessionID == nil || !chats.contains(where: { $0.id == selectedSessionID }) {
-                selectedSessionID = last.id
-            }
+        .onChange(of: sessionManager.chatSessions) { old, new in
+            updateSelection(added: new.map(\.id).filter { id in !old.contains { $0.id == id } })
         }
         // Dismiss keyboard whenever the user switches away from the Terminal tab.
         // Without this, SwiftTerm keeps first responder and the keyboard covers the tab bar.
@@ -164,6 +167,7 @@ struct SessionTabsView: View {
 
             // New session
             Button {
+                newSessionAgentID = nil
                 showNewSession = true
             } label: {
                 Image(systemName: "plus")
@@ -280,10 +284,13 @@ struct SessionTabsView: View {
                 agentName: session.agent.name,
                 embedded: true
             ) { path, dangerous in
-                let cmd = dangerous
-                    ? "cd \"\(path)\" && claude --dangerously-skip-permissions"
-                    : "cd \"\(path)\" && claude"
-                sessionManager.createSession(for: session.agent, initialCommand: cmd)
+                if dangerous {
+                    // Skipping permissions is a terminal-only flag.
+                    let cmd = "cd \"\(path)\" && claude --dangerously-skip-permissions"
+                    sessionManager.createSession(for: session.agent, initialCommand: cmd)
+                } else {
+                    sessionManager.startClaude(for: session.agent, cwd: path, name: nil)
+                }
                 activeTab = .terminal
             }
             .id(session.agent.id)
@@ -291,6 +298,19 @@ struct SessionTabsView: View {
         } else {
             noSessionPlaceholder
         }
+    }
+
+    /// Follows a newly opened session (terminal or chat). Otherwise keeps the
+    /// current one, falling back to any remaining session when it is gone, so
+    /// a reattach in one list never steals focus from a session in the other.
+    private func updateSelection(added: [String]) {
+        if let newest = added.last {
+            selectedSessionID = newest
+            return
+        }
+        let ids = sessionManager.sessions.map(\.id) + sessionManager.chatSessions.map(\.id)
+        if let selected = selectedSessionID, ids.contains(selected) { return }
+        selectedSessionID = ids.last
     }
 
     private var noSessionPlaceholder: some View {
@@ -382,6 +402,7 @@ private struct MachineSelectorSheet: View {
 
     @Binding var selectedSessionID: String?
     let onAddMachine: () -> Void   // opens full AgentListView for reattach
+    let onNewSession: (Agent) -> Void  // opens the New Session sheet for a Mac
     let onDismiss: () -> Void
 
     @State private var sessionToRename: TerminalSession?
@@ -462,8 +483,7 @@ private struct MachineSelectorSheet: View {
                                 openSessionCount: sessionManager.sessions
                                     .filter { $0.agent.id == agent.id }.count
                             ) {
-                                sessionManager.createSession(for: agent)
-                                onDismiss()
+                                onNewSession(agent)
                             }
                         }
                     } header: {
