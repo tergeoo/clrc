@@ -402,7 +402,8 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 				continue
 			}
 			switch textMsg.Type {
-			case "sessions_list", "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result", "chat_history_result":
+			case "sessions_list", "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result", "chat_history_result",
+				"git_status_result", "git_diff_result":
 				var pl struct {
 					RequestID string `json:"request_id"`
 				}
@@ -593,6 +594,9 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 		case "fs_list", "fs_mkdir", "fs_delete", "fs_read":
 			handleClientFSRequest(ctx, incoming, client, hub)
 
+		case "git_status", "git_diff":
+			handleClientGitRequest(ctx, incoming, client, hub)
+
 		case "chat_send", "chat_interrupt":
 			var pl struct {
 				SessionID string `json:"session_id"`
@@ -738,6 +742,31 @@ func handleClientDisconnect(ctx context.Context, msg Message, client *ClientConn
 		fwdData, _ := json.Marshal(fwd)
 		sess.Agent.Send(ctx, websocket.MessageText, fwdData)
 	}
+}
+
+// handleClientGitRequest routes git_status / git_diff to the agent: the
+// payload is forwarded as is (path, files, …) minus agent_id, and the
+// *_result is matched back by request_id like the fs requests.
+func handleClientGitRequest(ctx context.Context, msg Message, client *ClientConn, hub *Hub) {
+	var pl map[string]json.RawMessage
+	if err := json.Unmarshal(msg.Payload, &pl); err != nil {
+		return
+	}
+	var agentID, requestID string
+	json.Unmarshal(pl["agent_id"], &agentID)
+	json.Unmarshal(pl["request_id"], &requestID)
+	if agentID == "" || requestID == "" {
+		return
+	}
+	agent, ok := hub.GetAgent(agentID)
+	if !ok {
+		return
+	}
+	delete(pl, "agent_id")
+	hub.pendingRequests.Store(requestID, client)
+	fwd := Message{Type: msg.Type, Payload: mustMarshal(pl)}
+	fwdData, _ := json.Marshal(fwd)
+	agent.Send(ctx, websocket.MessageText, fwdData)
 }
 
 // handleClientFSRequest routes fs_list / fs_mkdir / fs_delete / fs_read to the agent.

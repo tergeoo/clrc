@@ -378,3 +378,46 @@ func TestReportEventRoutesAgentToClientVerbatim(t *testing.T) {
 		t.Fatalf("report event altered in relay: %+v", payload.Event)
 	}
 }
+
+func TestGitRequestsUseRequestCorrelation(t *testing.T) {
+	agent, client := connectPair(t)
+	readUntil(t, agent, "connect")
+
+	for _, kind := range []string{"git_status", "git_diff"} {
+		reqID := "req-" + kind
+		writeMsg(t, client, kind, map[string]any{
+			"agent_id": testAgentID, "request_id": reqID, "path": "~/dev/api", "files": []string{"a.go"},
+		})
+		fwd := readUntil(t, agent, kind)
+		var fwdPayload map[string]any
+		json.Unmarshal(fwd.Payload, &fwdPayload)
+		if _, leaked := fwdPayload["agent_id"]; leaked {
+			t.Errorf("%s: agent_id must be stripped", kind)
+		}
+		if fwdPayload["path"] != "~/dev/api" {
+			t.Errorf("%s: path not forwarded: %+v", kind, fwdPayload)
+		}
+		if kind == "git_diff" {
+			if files, _ := fwdPayload["files"].([]any); len(files) != 1 || files[0] != "a.go" {
+				t.Errorf("git_diff: files not forwarded: %+v", fwdPayload)
+			}
+		}
+
+		writeMsg(t, agent, kind+"_result", map[string]any{"request_id": reqID, "error": ""})
+		got := readUntil(t, client, kind+"_result")
+		var gotPayload map[string]any
+		json.Unmarshal(got.Payload, &gotPayload)
+		if gotPayload["request_id"] != reqID {
+			t.Fatalf("%s: request_id not correlated: %+v", kind, gotPayload)
+		}
+	}
+}
+
+func TestGitRequestsRejectEmptyRequestID(t *testing.T) {
+	agent, client := connectPair(t)
+	readUntil(t, agent, "connect")
+	writeMsg(t, client, "git_diff", map[string]any{"agent_id": testAgentID, "request_id": "", "path": "~"})
+	if _, ok := tryReadUntil(t, agent, "git_diff", 500*time.Millisecond); ok {
+		t.Fatal("git_diff with an empty request_id must not be forwarded")
+	}
+}
