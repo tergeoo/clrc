@@ -41,7 +41,7 @@ struct RootView: View {
 
     var body: some View {
         if authService.isAuthenticated {
-            SessionTabsView()
+            MainTabView()
         } else {
             LoginView()
         }

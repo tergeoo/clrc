@@ -270,7 +270,7 @@ struct SessionTabsView: View {
             ChatSessionView(session: chat)
                 .environmentObject(relay)
         } else if let session = activeSession {
-            TerminalTabContent(session: session)
+            TerminalScreen(session: session)
         } else {
             noSessionPlaceholder
         }
@@ -771,53 +771,5 @@ private struct ChatSessionRowView: View {
 
     private var shortAgentName: String {
         session.agent.name.components(separatedBy: ".").first ?? session.agent.name
-    }
-}
-
-// MARK: - TerminalTabContent
-
-private struct TerminalTabContent: View {
-    let session: TerminalSession
-    @EnvironmentObject var relay: RelayWebSocket
-
-    @State private var keyboardVisible = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            RemoteTerminalView(session: session)
-                .id(session.id)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            HStack(spacing: 0) {
-                QuickCommandBar { bytes in
-                    relay.sendInput(sessionID: session.id, data: Data(bytes))
-                }
-
-                // Keyboard dismiss button — appears only when keyboard is up
-                if keyboardVisible {
-                    Divider().frame(height: 32)
-                    Button {
-                        UIApplication.shared.sendAction(
-                            #selector(UIResponder.resignFirstResponder),
-                            to: nil, from: nil, for: nil
-                        )
-                    } label: {
-                        Image(systemName: "keyboard.chevron.compact.down")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 48, height: 44)
-                    }
-                }
-            }
-            .background(.bar)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            keyboardVisible = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardVisible = false
-        }
     }
 }
