@@ -13,6 +13,8 @@ struct NewSessionSheet: View {
     @State private var selectedAgentID: String?
     @State private var customName = ""
     @State private var showBrowser = false
+    @AppStorage(ChatDisplayMode.storageKey) private var displayMode: ChatDisplayMode = .chat
+    @AppStorage(SessionLaunchMode.terminalStorageKey) private var claudeInTerminal = false
 
     private var onlineAgents: [Agent] {
         relay.agents.filter(\.connected)
@@ -43,8 +45,8 @@ struct NewSessionSheet: View {
                     }
 
                     if let agent = selectedAgent {
-                        projectSection(agent: agent)
                         optionsSection
+                        projectSection(agent: agent)
                         startSection(agent: agent)
                     }
                 }
@@ -73,6 +75,26 @@ struct NewSessionSheet: View {
         }
         .onAppear {
             selectedAgentID = preferredAgentID ?? onlineAgents.first?.id
+        }
+    }
+
+    /// One picker over the two stored values: the chat display mode (shared
+    /// with Settings) and whether Claude runs in a terminal instead.
+    private var launchMode: Binding<SessionLaunchMode> {
+        Binding(
+            get: { SessionLaunchMode(displayMode: displayMode, inTerminal: claudeInTerminal) },
+            set: { mode in
+                claudeInTerminal = mode == .terminal
+                if let display = mode.displayMode { displayMode = display }
+            }
+        )
+    }
+
+    private var launchFooter: String {
+        switch launchMode.wrappedValue {
+        case .chat: return "Chat: replies as messages with a result card at the end."
+        case .brief: return "Brief: the result card first, the full reply folded under Details."
+        case .terminal: return "Terminal: claude in a full terminal, as on the Mac."
         }
     }
 
@@ -116,9 +138,19 @@ struct NewSessionSheet: View {
     }
 
     private var optionsSection: some View {
-        Section("Options") {
+        Section {
+            Picker("Claude", selection: launchMode) {
+                Text("Chat").tag(SessionLaunchMode.chat)
+                Text("Brief").tag(SessionLaunchMode.brief)
+                Text("Terminal").tag(SessionLaunchMode.terminal)
+            }
+            .pickerStyle(.segmented)
             TextField("Name (optional)", text: $customName)
                 .autocorrectionDisabled()
+        } header: {
+            Text("Options")
+        } footer: {
+            Text(launchFooter)
         }
     }
 
@@ -143,6 +175,12 @@ struct NewSessionSheet: View {
 
     private func start(in path: String?, agent: Agent) {
         let name = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if claudeInTerminal {
+            sessionManager.createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: path))
+            renameIfNeeded()
+            dismiss()
+            return
+        }
         sessionManager.createChatSession(
             for: agent,
             cwd: path ?? "~",
