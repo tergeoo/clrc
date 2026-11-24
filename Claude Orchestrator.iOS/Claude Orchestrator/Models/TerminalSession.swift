@@ -16,7 +16,7 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     @Published var activityLog: [ActivityEvent] = []
     @Published var claudeState: ClaudeState = .idle
     /// Pinch-zoomed font size, kept for the life of the session.
-    @Published var fontSize: CGFloat = TerminalFont.defaultSize
+    @Published var fontSize: CGFloat = UserPreferences.terminalFontSize
 
     enum ClaudeState {
         case idle

@@ -454,6 +454,12 @@ final class SessionManager: ObservableObject {
         if !tombstones.contains(where: { $0.id == entry.id }) { tombstones.append(entry) }
     }
 
+    /// «Закрыть все сессии»: terminals and chats.
+    func closeEverything() {
+        closeAll()
+        for chat in chatSessions { closeChat(chat) }
+    }
+
     func closeAll() {
         for session in sessions {
             close(session)

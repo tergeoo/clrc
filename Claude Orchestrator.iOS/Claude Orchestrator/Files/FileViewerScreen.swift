@@ -52,7 +52,7 @@ struct FileContentView: View {
 
     @EnvironmentObject var sessionManager: SessionManager
     @Environment(\.openSessionRoute) private var openSessionRoute
-    @State private var wrap = true
+    @State private var wrap = UserPreferences.fileWrap
     @State private var showSource = false
     @State private var searching = false
     @State private var query = ""

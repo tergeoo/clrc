@@ -87,7 +87,7 @@ struct ChatBottomBar: View {
                     }
                 }
                 Section("Шаблоны") {
-                    ForEach(NewTaskPlanner.templates, id: \.self) { template in
+                    ForEach(UserPreferences.templates, id: \.self) { template in
                         Button(template) { append(template) }
                     }
                 }

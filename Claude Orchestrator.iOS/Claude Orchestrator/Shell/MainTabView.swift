@@ -32,7 +32,7 @@ struct MainTabView: View {
                 .tabItem { Label("Проекты", systemImage: "folder") }
                 .tag(MainTab.projects)
 
-            SettingsView()
+            SettingsScreen()
                 .tabItem { Label("Настройки", systemImage: "gearshape") }
                 .tag(MainTab.settings)
         }

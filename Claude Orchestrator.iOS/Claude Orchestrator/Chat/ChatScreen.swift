@@ -47,7 +47,8 @@ struct ChatScreen: View {
         }
         // Only the newest turn's questions are still open, until answered.
         let lastTurn = transcript.turns.last
-        content.chips = QuickReplies.chips(for: lastTurn?.isAnswered == false ? lastTurn?.report : nil)
+        content.chips = QuickReplies.chips(for: lastTurn?.isAnswered == false ? lastTurn?.report : nil,
+                                           permanent: UserPreferences.quickReplies)
         content.changedFiles = latest?.changedFiles ?? []
         content.lastSeq = transcript.lastSeq
         return content

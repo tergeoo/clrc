@@ -169,7 +169,7 @@ struct NewTaskSheet: View {
                 .cardStyle()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(NewTaskPlanner.templates, id: \.self) { template in
+                    ForEach(UserPreferences.templates, id: \.self) { template in
                         Chip(title: template, selected: false) { prompt = template }
                     }
                 }
