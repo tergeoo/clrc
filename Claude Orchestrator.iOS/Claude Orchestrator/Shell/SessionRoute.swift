@@ -36,8 +36,7 @@ struct SessionScreen: View {
         switch route {
         case .chat(let id):
             if let chat = sessionManager.chatSessions.first(where: { $0.id == id }) {
-                ChatSessionView(session: chat)
-                    .navigationTitle(chat.customName)
+                ChatScreen(session: chat)
             } else {
                 closed
             }

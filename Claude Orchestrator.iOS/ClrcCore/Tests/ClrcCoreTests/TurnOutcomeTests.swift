@@ -45,3 +45,12 @@ private func ev(_ kind: ChatEventKind, _ seq: UInt64, text: String = "", message
     #expect(turnCostText(costUSD: 0, durationMS: 0) == nil)
     #expect(turnCostText(costUSD: 0, durationMS: 120_000) == "2 мин")
 }
+
+@Test func turnIsAnsweredOnceUserTextFollowsReport() {
+    let report = ChatEvent(kind: .report, seq: 3, ts: "", report: TurnReport(status: .needsInput, questions: ["a"]))
+    let open = ChatTurn(id: 1, events: [ev(.turnStart, 1), ev(.text, 2, text: "?"), report, ev(.turnEnd, 4)])
+    #expect(!open.isAnswered)
+    let answered = ChatTurn(id: 1, events: open.events + [ev(.userText, 5, text: "1")])
+    #expect(answered.isAnswered)
+    #expect(!ChatTurn(id: 1, events: [ev(.userText, 1, text: "hi")]).isAnswered)
+}

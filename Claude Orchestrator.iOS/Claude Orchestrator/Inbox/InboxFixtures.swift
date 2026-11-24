@@ -92,7 +92,7 @@ enum InboxFixtures {
     }
 }
 
-/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading | newtask):
+/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading | newtask | chat | brief | chatworking | chaterror | chatinput):
 /// the 2.0 shell over fixture data, no relay or sign-in involved.
 struct DesignPreviewRoot: View {
     let state: String
@@ -100,6 +100,8 @@ struct DesignPreviewRoot: View {
     var body: some View {
         if state == "newtask" {
             NewTaskPreviewHost()
+        } else if ChatPreviewHost.states.contains(state) {
+            ChatPreviewHost(state: state)
         } else {
             tabs
         }

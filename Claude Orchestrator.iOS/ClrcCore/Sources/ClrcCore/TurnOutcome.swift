@@ -18,6 +18,14 @@ extension ChatTurn {
     }
 
     public var toolEvents: [ChatEvent] { events.filter { $0.kind == .toolUse } }
+
+    /// The user already replied after this turn's report, so its questions
+    /// are closed (the reply lands at the end of the turn until the next
+    /// `turn_start`).
+    public var isAnswered: Bool {
+        guard let reportSeq = events.last(where: { $0.kind == .report })?.seq else { return false }
+        return events.contains { $0.kind == .userText && $0.seq > reportSeq }
+    }
 }
 
 extension ChatTranscript {
