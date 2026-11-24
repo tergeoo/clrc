@@ -11,6 +11,8 @@ public struct LaunchRequest: Sendable, Equatable {
     public let name: String
     public let model: String?
     public let profile: String?
+    /// Terminal launches only: `claude --dangerously-skip-permissions`.
+    public let skipPermissions: Bool
 }
 
 public enum NewTaskPlanner {
@@ -29,11 +31,14 @@ public enum NewTaskPlanner {
     /// Normalizes the sheet's raw inputs: blanks become nil, `~` means home,
     /// the name falls back to the project folder, the profile must be valid.
     public static func request(agentID: String, cwd: String?, mode: SessionLaunchMode, prompt: String,
-                               customName: String, model: String, profile: String) -> LaunchRequest {
+                               customName: String, model: String, profile: String,
+                               skipPermissions: Bool = false) -> LaunchRequest {
         let folder = (cwd == "~" || cwd?.isEmpty == true) ? nil : cwd
         let name = nonEmpty(customName) ?? folder.map { ($0 as NSString).lastPathComponent } ?? fallbackName
         return LaunchRequest(agentID: agentID, cwd: folder, mode: mode, prompt: nonEmpty(prompt),
-                             name: name, model: nonEmpty(model), profile: normalizedProfile(profile))
+                             name: name, model: nonEmpty(model), profile: normalizedProfile(profile),
+                             // Chat sessions already run with bypassPermissions on the agent.
+                             skipPermissions: skipPermissions && mode == .terminal)
     }
 
     /// Tapping a recent project launches at once only when no task was typed.

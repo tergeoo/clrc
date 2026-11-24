@@ -45,7 +45,16 @@ public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
     /// first message. The prompt is single-quoted the same way, so quotes,
     /// `$` and newlines reach Claude literally.
     public static func terminalCommand(cwd: String?, prompt: String?) -> String {
+        terminalCommand(cwd: cwd, prompt: prompt, skipPermissions: false)
+    }
+
+    public static let skipPermissionsFlag = "--dangerously-skip-permissions"
+
+    /// As above; `skipPermissions` adds `--dangerously-skip-permissions`
+    /// («Без подтверждений (опасно)») before the prompt.
+    public static func terminalCommand(cwd: String?, prompt: String?, skipPermissions: Bool) -> String {
         var claude = "claude"
+        if skipPermissions { claude += " " + skipPermissionsFlag }
         if let prompt, !prompt.isEmpty { claude += " " + ShellCommand.quoted(prompt) }
         guard let cwd, !cwd.isEmpty, cwd != "~" else { return claude }
         return "cd \(ShellCommand.quotedPath(cwd)) && \(claude)"

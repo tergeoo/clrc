@@ -16,7 +16,7 @@ public enum QuickReplies {
 
     /// The report's questions first, answered by number («1 · …» sends "1"),
     /// then the permanent chips minus any that repeat a question.
-    public static func chips(for report: TurnReport?) -> [QuickReply] {
+    public static func chips(for report: TurnReport?, permanent: [String] = QuickReplies.permanent) -> [QuickReply] {
         let questions = report?.questions ?? []
         let answers = questions.indices.map { index in
             QuickReply(title: capped("\(index + 1) · \(questions[index])"),

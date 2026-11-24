@@ -51,3 +51,14 @@ import Testing
 @Test func templatesMatchSpec() {
     #expect(NewTaskPlanner.templates == ["Почини тесты", "Сделай ревью ветки", "Объясни код", "Обнови зависимости"])
 }
+
+@Test func skipPermissionsOnlyInTerminal() {
+    let chat = NewTaskPlanner.request(agentID: "a", cwd: nil, mode: .chat, prompt: "", customName: "", model: "", profile: "",
+                                      skipPermissions: true)
+    #expect(!chat.skipPermissions)
+    let term = NewTaskPlanner.request(agentID: "a", cwd: nil, mode: .terminal, prompt: "", customName: "", model: "", profile: "",
+                                      skipPermissions: true)
+    #expect(term.skipPermissions)
+    let plain = NewTaskPlanner.request(agentID: "a", cwd: nil, mode: .terminal, prompt: "", customName: "", model: "", profile: "")
+    #expect(!plain.skipPermissions)
+}
