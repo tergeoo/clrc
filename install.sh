@@ -2,7 +2,7 @@
 # CLRC — Universal Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/tergeoo/clrc/main/install.sh | sh
 # Or with options:
-#   curl -fsSL .../install.sh | sh -s -- --relay wss://my-relay.com --secret mysecret
+#   curl -fsSL .../install.sh | sh -s -- --relay wss://my-relay.com --secret mysecret --profile personal
 set -e
 
 REPO="tergeoo/clrc"
@@ -42,12 +42,14 @@ info "Detected: $OS / $ARCH"
 RELAY_URL=""
 AGENT_SECRET=""
 AGENT_NAME=""
+CLRC_PROFILE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --relay)  RELAY_URL="$2";    shift 2 ;;
     --secret) AGENT_SECRET="$2"; shift 2 ;;
     --name)   AGENT_NAME="$2";   shift 2 ;;
+    --profile) CLRC_PROFILE="$2"; shift 2 ;;
     *) warn "Unknown option: $1"; shift ;;
   esac
 done
@@ -126,6 +128,7 @@ AGENT_NAME="${AGENT_NAME}"
 AGENT_SECRET="${AGENT_SECRET}"
 RELAY_URL="${RELAY_URL}"
 DEFAULT_COMMAND="bash"
+CLRC_PROFILE="${CLRC_PROFILE}"
 ENV
   chmod 600 "$CONFIG_FILE"
   success "Config written: $CONFIG_FILE"
@@ -155,7 +158,7 @@ install_launchd() {
   <key>EnvironmentVariables</key>
   <dict>
     <key>HOME</key>            <string>${HOME}</string>
-    <key>PATH</key>            <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:/opt/homebrew/sbin</string>
+    <key>PATH</key>            <string>${HOME}/.local/bin:${HOME}/go/bin:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:/opt/homebrew/sbin</string>
     <key>TERM</key>            <string>xterm-256color</string>
     <key>LANG</key>            <string>en_US.UTF-8</string>
     <key>AGENT_ID</key>        <string>${AGENT_ID}</string>
