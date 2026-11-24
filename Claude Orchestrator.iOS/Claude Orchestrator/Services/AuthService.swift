@@ -226,23 +226,23 @@ enum AuthError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .wrongPassword:
-            return "Incorrect password."
+            return "Неверный пароль."
         case .rateLimited:
-            return "Too many attempts. Wait a minute and try again."
+            return "Слишком много попыток. Подождите минуту."
         case .loginServerError(let code):
-            return "Server error (\(code)). Try again shortly."
+            return "Ошибка сервера (\(code)). Попробуйте чуть позже."
         case .unreachable(let host):
-            return "Can't reach \(host). Check the server address and try again."
+            return "Не удаётся связаться с \(host). Проверьте адрес."
         case .noRefreshToken:
-            return "No refresh token"
+            return "Нужно войти снова."
         case .sessionExpired:
-            return "Session expired, please log in again"
+            return "Сессия истекла, войдите снова."
         case .refreshUnreachable(let host):
-            return "Lost connection to \(host). Sign in again once it's reachable."
+            return "Пропала связь с \(host). Войдите снова, когда он будет доступен."
         case .refreshServerError(let code):
-            return "Server error (\(code)) while renewing your session. Please sign in again."
+            return "Ошибка сервера (\(code)) при продлении сессии. Войдите снова."
         case .invalidResponse:
-            return "Unexpected server response"
+            return "Неожиданный ответ сервера."
         }
     }
 }
