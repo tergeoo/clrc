@@ -15,7 +15,7 @@ struct InboxView: View {
             InboxScreen(content: model.content, actions: actions(model))
         }
         .sheet(isPresented: $showNewTask) {
-            NewSessionSheet(preferredAgentID: nil)
+            NewTaskSheet(onLaunched: { route in path.append(route) })
                 .environmentObject(relay)
                 .environmentObject(sessionManager)
         }
@@ -31,7 +31,14 @@ struct InboxView: View {
             undo: model.undo,
             retry: model.retryConnection,
             newTask: { showNewTask = true },
-            launchRecent: { _ in showNewTask = true },
+            launchRecent: { project in
+                let request = NewTaskPlanner.request(
+                    agentID: project.agentID, cwd: project.path,
+                    mode: SessionLaunchMode(displayMode: ChatDisplayMode.stored(in: .standard),
+                                            inTerminal: UserDefaults.standard.bool(forKey: SessionLaunchMode.terminalStorageKey)),
+                    prompt: "", customName: "", model: "", profile: UserDefaults.standard.string(forKey: ChatDisplayMode.profileStorageKey) ?? "")
+                if let route = sessionManager.launch(request) { path.append(route) }
+            },
             stop: { id in
                 if let chat = sessionManager.chatSessions.first(where: { $0.id == id }) { sessionManager.stop(chat) }
             },

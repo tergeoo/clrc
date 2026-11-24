@@ -92,12 +92,20 @@ enum InboxFixtures {
     }
 }
 
-/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading):
+/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading | newtask):
 /// the 2.0 shell over fixture data, no relay or sign-in involved.
 struct DesignPreviewRoot: View {
     let state: String
 
     var body: some View {
+        if state == "newtask" {
+            NewTaskPreviewHost()
+        } else {
+            tabs
+        }
+    }
+
+    private var tabs: some View {
         TabView {
             NavigationStack { InboxScreen(content: InboxFixtures.content(state), actions: InboxActions()) }
                 .tabItem { Label("Входящие", systemImage: "tray.full") }
@@ -106,6 +114,38 @@ struct DesignPreviewRoot: View {
             Text("Настройки").tabItem { Label("Настройки", systemImage: "gearshape") }
         }
         .tint(Palette.tint)
+    }
+
+    /// The New Task sheet over two fake Macs with recent projects. The relay
+    /// points at a discard address and never signs in.
+    private struct NewTaskPreviewHost: View {
+        @StateObject private var relay: RelayWebSocket
+        @StateObject private var sessionManager: SessionManager
+        @State private var shown = true
+
+        init() {
+            let url = URL(string: "http://127.0.0.1:9")!
+            let relay = RelayWebSocket(relayURL: url, authService: AuthService(relayURL: url))
+            relay.agents = [Agent(id: "mbp", name: "mbp-work", connected: true),
+                            Agent(id: "mini", name: "mac-mini", connected: true)]
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clrc-design-preview", isDirectory: true)
+            try? FileManager.default.removeItem(at: dir)
+            let store = SessionsStore(directory: dir)
+            for path in ["/Users/g/startups/clrc", "/Users/g/startups/web", "/Users/g/startups/api"] {
+                store.addRecentProject(path, agentID: "mbp")
+            }
+            _relay = StateObject(wrappedValue: relay)
+            _sessionManager = StateObject(wrappedValue: SessionManager(relay: relay, store: store))
+        }
+
+        var body: some View {
+            Palette.bg.ignoresSafeArea()
+                .sheet(isPresented: $shown) {
+                    NewTaskSheet(preferredAgentID: "mbp")
+                        .environmentObject(relay)
+                        .environmentObject(sessionManager)
+                }
+        }
     }
 
     /// The state named after `-designPreview`, or nil when the argument is absent.

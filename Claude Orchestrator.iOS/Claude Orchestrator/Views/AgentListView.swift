@@ -69,7 +69,7 @@ struct AgentListView: View {
             .environmentObject(sessionManager)
         }
         .sheet(item: $newSessionAgent) { agent in
-            NewSessionSheet(preferredAgentID: agent.id)
+            NewTaskSheet(preferredAgentID: agent.id)
                 .environmentObject(relay)
                 .environmentObject(sessionManager)
         }

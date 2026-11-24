@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-struct NewTaskSheet: View {
+struct TerminalPromptSheet: View {
     let session: TerminalSession
     @EnvironmentObject var relay: RelayWebSocket
     @Environment(\.dismiss) private var dismiss

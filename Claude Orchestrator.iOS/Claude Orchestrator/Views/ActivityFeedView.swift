@@ -47,7 +47,7 @@ struct ActivityFeedView: View {
             .padding(.bottom, 20)
         }
         .sheet(isPresented: $showNewTask) {
-            NewTaskSheet(session: session)
+            TerminalPromptSheet(session: session)
                 .environmentObject(relay)
         }
     }

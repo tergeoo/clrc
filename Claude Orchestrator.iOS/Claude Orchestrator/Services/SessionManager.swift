@@ -253,20 +253,52 @@ final class SessionManager: ObservableObject {
         relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24, name: name)
     }
 
-    /// Starts Claude in `cwd` the way the user last chose in the New Session
-    /// sheet: a chat session (chat or brief display) or `claude` in a terminal.
-    func startClaude(for agent: Agent, cwd: String?, name: String?) {
-        let defaults = UserDefaults.standard
-        if defaults.bool(forKey: SessionLaunchMode.terminalStorageKey) {
-            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: cwd))
-            if let name, !name.isEmpty, let created = sessions.last { rename(created, to: name) }
-            return
+    /// Starts a session from the New Task sheet and remembers its mode for
+    /// next time. A chat session gets the task as its first message right
+    /// after `connect`: the agent handles `connect` before it reads the next
+    /// frame, so the session exists when the message arrives. Returns nil
+    /// when the Mac went offline.
+    @discardableResult
+    func launch(_ request: LaunchRequest) -> SessionRoute? {
+        guard let agent = agentFor(id: request.agentID) else { return nil }
+        remember(request.mode)
+
+        guard let display = request.mode.displayMode else {
+            createSession(for: agent, initialCommand: SessionLaunchMode.terminalCommand(cwd: request.cwd, prompt: request.prompt))
+            guard let created = sessions.last else { return nil }
+            rename(created, to: request.name)
+            return .terminal(id: created.id)
         }
-        let fallback = cwd.map { ($0 as NSString).lastPathComponent } ?? "claude"
-        createChatSession(for: agent, cwd: cwd ?? "~", name: (name?.isEmpty == false ? name : nil) ?? fallback)
+
+        let options = ChatConnectOptions(style: display.outputStyle, model: request.model,
+                                         profile: request.profile ?? chatConnectOptions().profile)
+        let session = createChatSession(for: agent, cwd: request.cwd ?? "~", name: request.name, options: options)
+        if let prompt = request.prompt {
+            relay.sendChatMessage(sessionID: session.id, text: prompt)
+        }
+        return .chat(id: session.id)
     }
 
-    func createChatSession(for agent: Agent, cwd: String, name: String) {
+    /// A plain shell on the Mac («Пустой терминал»).
+    @discardableResult
+    func launchEmptyTerminal(agentID: String) -> SessionRoute? {
+        guard let agent = agentFor(id: agentID) else { return nil }
+        createSession(for: agent)
+        return sessions.last.map { .terminal(id: $0.id) }
+    }
+
+    /// Stores the launch mode in the keys Settings and the sheet both read.
+    private func remember(_ mode: SessionLaunchMode) {
+        let defaults = UserDefaults.standard
+        defaults.set(mode == .terminal, forKey: SessionLaunchMode.terminalStorageKey)
+        if let display = mode.displayMode {
+            defaults.set(display.rawValue, forKey: ChatDisplayMode.storageKey)
+        }
+    }
+
+    @discardableResult
+    func createChatSession(for agent: Agent, cwd: String, name: String,
+                           options: ChatConnectOptions? = nil) -> ChatSession {
         let session = ChatSession(agent: agent, cwd: cwd, customName: name)
         store.upsert(PersistedSession(
             id: session.id, agentID: agent.id, agentName: agent.name,
@@ -276,7 +308,8 @@ final class SessionManager: ObservableObject {
         if cwd != "~" {
             store.addRecentProject(cwd, agentID: agent.id)
         }
-        attachChat(session)
+        attachChat(session, options: options ?? chatConnectOptions())
+        return session
     }
 
     /// Brings back a chat session saved by an earlier launch. The agent keeps
@@ -285,12 +318,12 @@ final class SessionManager: ObservableObject {
     private func restoreChat(_ entry: PersistedSession, agent: Agent) {
         let session = ChatSession(agentID: agent.id, agentName: agent.name, sessionID: entry.id,
                                   cwd: entry.cwd ?? "~", customName: entry.customName)
-        attachChat(session)
+        attachChat(session, options: chatConnectOptions())
         startChatReplay(for: session)
     }
 
     /// Adds a chat session to the UI, routes its events and sends `connect`.
-    private func attachChat(_ session: ChatSession) {
+    private func attachChat(_ session: ChatSession, options: ChatConnectOptions) {
         chatSessions.append(session)
 
         relay.registerChatHandler(sessionID: session.id) { [weak self, weak session] event in
@@ -310,20 +343,19 @@ final class SessionManager: ObservableObject {
             }
         }
 
-        let options = chatConnectOptions()
         relay.sendChatConnect(agentID: session.agent.id, sessionID: session.id,
-                              cwd: session.cwd, name: session.customName,
+                              cwd: session.cwd, name: session.customName, model: options.model,
                               style: options.style, profile: options.profile)
     }
 
     /// The output style for the selected display mode and the optional
     /// Claude profile, both from Settings. The agent applies them only when
     /// it spawns a session, so a reattach to a live session is unaffected.
-    private func chatConnectOptions() -> (style: String, profile: String?) {
+    private func chatConnectOptions() -> ChatConnectOptions {
         let defaults = UserDefaults.standard
         let style = ChatDisplayMode.stored(in: defaults).outputStyle
         let profile = normalizedProfile(defaults.string(forKey: ChatDisplayMode.profileStorageKey) ?? "")
-        return (style, profile)
+        return ChatConnectOptions(style: style, model: nil, profile: profile)
     }
 
     /// Interrupts the running turn of a chat session.
@@ -429,4 +461,12 @@ final class SessionManager: ObservableObject {
     private func agentFor(id: String) -> Agent? {
         relay.agents.first { $0.id == id && $0.connected }
     }
+}
+
+/// What a chat `connect` asks the agent to spawn with. The agent applies
+/// these only when it starts the session; a reattach ignores them.
+struct ChatConnectOptions {
+    let style: String
+    let model: String?
+    let profile: String?
 }

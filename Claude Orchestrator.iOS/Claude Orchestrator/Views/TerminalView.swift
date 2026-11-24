@@ -88,7 +88,7 @@ struct RemoteTerminalView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(session: session, relay: relay) }
 
     static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
-        // Don't unregister here — closeSession() in SessionTabsView handles it explicitly.
+        // Don't unregister here — SessionManager.close(_:) handles it explicitly.
         // Unregistering here breaks the case where SwiftUI recreates the view for the same session.
     }
 
