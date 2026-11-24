@@ -80,3 +80,16 @@ func freshTranscriptNeverLooksReset() {
     #expect(!transcript.isBehindBufferReset(replyNextSeq: 0))
     #expect(!transcript.isBehindBufferReset(replyNextSeq: 5))
 }
+
+@Test func progressSeqTracksTurnStartsAndErrorsOnly() {
+    let transcript = ChatTranscript().applying([
+        ChatEvent(kind: .turnStart, seq: 1, ts: ""),
+        ChatEvent(kind: .text, seq: 2, ts: ""),
+        ChatEvent(kind: .turnEnd, seq: 3, ts: ""),
+        ChatEvent(kind: .userText, seq: 4, ts: ""),
+    ])
+    #expect(transcript.lastProgressSeq == 1)
+    let failed = transcript.applying([ChatEvent(kind: .error, seq: 5, ts: "", message: "x")])
+    #expect(failed.lastProgressSeq == 5)
+    #expect(ChatTranscript().lastProgressSeq == 0)
+}

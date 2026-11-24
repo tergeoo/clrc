@@ -42,4 +42,5 @@ struct InboxActions {
     var stop: (String) -> Void = { _ in }
     var close: (SessionRoute) -> Void = { _ in }
     var restart: (String) -> Void = { _ in }
+    var removeEnded: (String) -> Void = { _ in }
 }

@@ -80,7 +80,7 @@ private func build(_ chats: [InboxChatSnapshot], pending: Set<String> = []) -> I
         ended: [], pendingAnswerIDs: [])
     #expect(!withTerminal.isEmpty)
     let withEnded = InboxBuilder.build(
-        chats: [], terminals: [], ended: [InboxEndedSnapshot(id: "e", name: "api", agentName: "m", projectPath: nil)],
+        chats: [], terminals: [], ended: [InboxEndedSnapshot(id: "e", name: "api", agentName: "m", projectPath: nil, agentOnline: true)],
         pendingAnswerIDs: [])
     #expect(!withEnded.isEmpty)
 }
@@ -90,4 +90,10 @@ private func build(_ chats: [InboxChatSnapshot], pending: Set<String> = []) -> I
     #expect(InboxBuilder.connectionPill(relayConnected: true, onlineMacs: 0) == "нет Маков")
     #expect(InboxBuilder.connectionPill(relayConnected: true, onlineMacs: 1) == "1 Мак")
     #expect(InboxBuilder.connectionPill(relayConnected: true, onlineMacs: 2) == "2 Мака")
+}
+
+@Test func endedSessionsKeepTheirMacsOnlineState() {
+    let ended = [InboxEndedSnapshot(id: "e", name: "api", agentName: "m", projectPath: nil, agentOnline: false)]
+    let s = InboxBuilder.build(chats: [], terminals: [], ended: ended, pendingAnswerIDs: [])
+    #expect(s.ended.first?.agentOnline == false)
 }

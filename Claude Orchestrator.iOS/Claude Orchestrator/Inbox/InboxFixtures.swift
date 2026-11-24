@@ -37,7 +37,7 @@ enum InboxFixtures {
         return InboxBuilder.build(
             chats: chats,
             terminals: [InboxTerminalSnapshot(id: "t1", name: "zsh", agentName: "mbp-work", isWorking: false, agentOnline: !relayDown)],
-            ended: [InboxEndedSnapshot(id: "e1", name: "infra", agentName: "mac-mini", projectPath: "/Users/g/infra")],
+            ended: [InboxEndedSnapshot(id: "e1", name: "infra", agentName: "mac-mini", projectPath: "/Users/g/infra", agentOnline: !relayDown)],
             pendingAnswerIDs: [])
     }
 

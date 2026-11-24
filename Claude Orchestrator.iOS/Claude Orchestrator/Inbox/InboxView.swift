@@ -50,7 +50,8 @@ struct InboxView: View {
                     if let term = sessionManager.sessions.first(where: { $0.id == id }) { sessionManager.close(term) }
                 }
             },
-            restart: sessionManager.restart(endedID:)
+            restart: sessionManager.restart(endedID:),
+            removeEnded: sessionManager.removeTombstone(id:)
         )
     }
 }
@@ -191,7 +192,7 @@ struct InboxScreen: View {
             .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
         }
         if !s.ended.isEmpty {
-            EndedSection(ended: s.ended, expanded: $showEnded, restart: actions.restart)
+            EndedSection(ended: s.ended, expanded: $showEnded, restart: actions.restart, remove: actions.removeEnded)
         }
     }
 

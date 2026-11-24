@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 import ClrcCore
 
 /// Live Inbox state: turns sessions and relay state into `InboxContent`
@@ -40,6 +41,12 @@ final class InboxModel: ObservableObject {
             .sink { [weak self] _ in self?.rebuild() }
             .store(in: &cancellables)
 
+        // The timer stops in the background: send held answers now rather
+        // than whenever the app comes back.
+        NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+            .sink { [weak self] _ in self?.flushHeldAnswers() }
+            .store(in: &cancellables)
+
         Timer.publish(every: Self.tickInterval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] now in self?.tick(now: now) }
@@ -75,19 +82,35 @@ final class InboxModel: ObservableObject {
     // MARK: - Clock
 
     private func tick(now: Date) {
-        let (send, dropped) = queue.drain(now: now, onlineAgentIDs: onlineAgentIDs())
-        for answer in send {
-            relay.sendChatMessage(sessionID: answer.sessionID, text: answer.text)
-        }
-        if let first = dropped.first {
-            let mac = relay.agents.first { $0.id == first.agentID }?.name ?? "Мак"
-            show(Toast(text: "Не отправлено: \(mac) не в сети", canUndo: false), now: now)
+        deliver(queue.drain(now: now, onlineAgentIDs: onlineAgentIDs()), now: now)
+        if !queue.expire(now: now).isEmpty {
+            show(Toast(text: "Ответ не дошёл до Мака — попробуйте ещё раз", canUndo: false), now: now)
         }
         if let hideAt = toastHideAt, now >= hideAt {
             toast = nil
             toastHideAt = nil
         }
         rebuild(now: now)
+    }
+
+    private func flushHeldAnswers() {
+        let now = Date()
+        deliver(queue.drain(now: .distantFuture, onlineAgentIDs: onlineAgentIDs()), now: now)
+        rebuild(now: now)
+    }
+
+    /// Sends due answers and keeps their cards working until the agent
+    /// starts a turn; answers for an unreachable Mac are reported dropped.
+    private func deliver(_ result: (send: [PendingAnswer], dropped: [PendingAnswer]), now: Date) {
+        for answer in result.send {
+            let progress = sessionManager.chatSessions.first { $0.id == answer.sessionID }?.transcript.lastProgressSeq ?? 0
+            relay.sendChatMessage(sessionID: answer.sessionID, text: answer.text)
+            queue.markSent(answer, afterSeq: progress, now: now)
+        }
+        if let first = result.dropped.first {
+            let mac = relay.agents.first { $0.id == first.agentID }?.name ?? "Мак"
+            show(Toast(text: "Не отправлено: \(mac) не в сети", canUndo: false), now: now)
+        }
     }
 
     private func show(_ toast: Toast, now: Date) {
@@ -104,6 +127,9 @@ final class InboxModel: ObservableObject {
     }
 
     private func rebuild(now: Date = Date()) {
+        queue.confirm(progress: Dictionary(uniqueKeysWithValues: sessionManager.chatSessions.map {
+            ($0.id, $0.transcript.lastProgressSeq)
+        }))
         let online = onlineAgentIDs()
         let relayConnected = relay.connectionState == .connected
         if relayConnected { lastSync = now }
@@ -116,7 +142,8 @@ final class InboxModel: ObservableObject {
                                          isWorking: working, agentOnline: online.contains(session.agent.id))
         }
         let ended = sessionManager.tombstones.map {
-            InboxEndedSnapshot(id: $0.id, name: $0.customName, agentName: $0.agentName, projectPath: $0.projectPath)
+            InboxEndedSnapshot(id: $0.id, name: $0.customName, agentName: $0.agentName, projectPath: $0.projectPath,
+                               agentOnline: online.contains($0.agentID))
         }
 
         var content = InboxContent()

@@ -56,12 +56,15 @@ public struct InboxEndedSnapshot: Sendable, Equatable, Identifiable {
     public let name: String
     public let agentName: String
     public let projectPath: String?
+    /// «Перезапустить» needs the Mac; offline it is shown disabled.
+    public let agentOnline: Bool
 
-    public init(id: String, name: String, agentName: String, projectPath: String?) {
+    public init(id: String, name: String, agentName: String, projectPath: String?, agentOnline: Bool) {
         self.id = id
         self.name = name
         self.agentName = agentName
         self.projectPath = projectPath
+        self.agentOnline = agentOnline
     }
 }
 

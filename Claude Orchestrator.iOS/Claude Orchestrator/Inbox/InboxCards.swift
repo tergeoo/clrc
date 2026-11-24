@@ -219,6 +219,7 @@ struct EndedSection: View {
     let ended: [InboxEndedSnapshot]
     @Binding var expanded: Bool
     let restart: (String) -> Void
+    let remove: (String) -> Void
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
@@ -227,14 +228,26 @@ struct EndedSection: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.name).font(.system(size: 15, weight: .semibold))
-                            Text(item.projectPath ?? item.agentName).font(monoMeta).foregroundStyle(Palette.meta).lineLimit(1)
+                            Text(item.agentOnline ? (item.projectPath ?? item.agentName) : "\(item.agentName) не в сети")
+                                .font(monoMeta).foregroundStyle(Palette.meta).lineLimit(1)
                         }
                         Spacer()
                         Button("Перезапустить") { restart(item.id) }
                             .font(.system(size: 14, weight: .semibold))
                             .frame(minHeight: Metrics.minTapTarget)
+                            .disabled(!item.agentOnline)
+                        Button { remove(item.id) } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Palette.meta)
+                                .frame(width: Metrics.minTapTarget, height: Metrics.minTapTarget)
+                        }
+                        .accessibilityLabel("Убрать")
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.leading, 14)
+                    .contextMenu {
+                        Button("Убрать", systemImage: "xmark", role: .destructive) { remove(item.id) }
+                    }
                 }
             }
             .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))

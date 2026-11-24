@@ -59,6 +59,16 @@ public struct ChatTranscript: Sendable, Equatable {
         turns.last(where: { $0.report != nil })?.report
     }
 
+    /// Highest seq of a `turn_start` or `error`: the agent's sign that a
+    /// message was taken up (a turn began) or refused. `user_text` alone is
+    /// not enough — it lands before the turn starts. 0 when none.
+    public var lastProgressSeq: UInt64 {
+        turns.flatMap(\.events)
+            .filter { $0.kind == .turnStart || $0.kind == .error }
+            .map(\.seq)
+            .max() ?? 0
+    }
+
     /// True when `seq` is further ahead than the next expected event, meaning
     /// something was missed and the tail should be re-requested.
     public func hasGap(before seq: UInt64) -> Bool {
