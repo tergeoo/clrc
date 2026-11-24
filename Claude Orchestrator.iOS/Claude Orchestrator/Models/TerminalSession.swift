@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftTerm
+import ClrcCore
 
 /// Represents one active PTY session connected to a Mac agent.
 @MainActor
@@ -14,6 +15,8 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     @Published var isReady: Bool = false
     @Published var activityLog: [ActivityEvent] = []
     @Published var claudeState: ClaudeState = .idle
+    /// Pinch-zoomed font size, kept for the life of the session.
+    @Published var fontSize: CGFloat = TerminalFont.defaultSize
 
     enum ClaudeState {
         case idle
@@ -29,6 +32,9 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
 
     /// Command sent automatically once the PTY session is ready.
     let initialCommand: String?
+
+    /// The folder this session was started in, when its command said so.
+    var projectPath: String? { SessionNaming.projectPath(from: initialCommand) }
 
     // Output parsing state
     private var outputBuffer = ""

@@ -3,15 +3,16 @@ import Foundation
 /// Derives display names and project paths from the shell command a session was started with.
 public enum SessionNaming {
 
-    /// Extracts the directory from a "cd <path> && …" prefix, if present.
+    /// Extracts the directory from a "cd <path> && …" prefix or a bare
+    /// "cd <path>", if present. The home folder (`~`) is not a project.
     public static func projectPath(from command: String?) -> String? {
         guard let cmd = command else { return nil }
-        let pattern = #"cd\s+["']?([^"'&\r\n]+?)["']?\s*&&"#
+        let pattern = #"^\s*cd\s+["']?([^"'&\r\n]+?)["']?\s*(?:&&|$)"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: cmd, range: NSRange(cmd.startIndex..., in: cmd)),
               let range = Range(match.range(at: 1), in: cmd) else { return nil }
         let path = String(cmd[range]).trimmingCharacters(in: .whitespaces)
-        return path.isEmpty ? nil : path
+        return path.isEmpty || path == "~" ? nil : path
     }
 
     public static func autoName(for command: String?, index: Int) -> String {

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftTerm
 import UIKit
+import ClrcCore
 
 // MARK: - ScrollableTerminalView
 
@@ -57,10 +58,12 @@ struct RemoteTerminalView: UIViewRepresentable {
         // mouse-pan gesture recognizer either. See ScrollableTerminalView's doc comment.
         tv.allowMouseReporting = false
 
-        // Readable theme for mobile
-        tv.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
+        // Dark theme; the font follows the session's pinch size.
+        tv.font = UIFont.monospacedSystemFont(ofSize: session.fontSize, weight: .regular)
         tv.nativeBackgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.13, alpha: 1) // ~#1C1C21
         tv.nativeForegroundColor = UIColor(red: 0.92, green: 0.92, blue: 0.94, alpha: 1) // near-white
+        // TerminalScreen draws its own single row of special keys.
+        tv.inputAccessoryView = nil
 
         session.terminalView = tv
 
@@ -68,17 +71,10 @@ struct RemoteTerminalView: UIViewRepresentable {
             DispatchQueue.main.async { session?.receive(data) }
         }
 
-        // Become first responder so the keyboard appears immediately
-        DispatchQueue.main.async { tv.becomeFirstResponder() }
-
-        // Re-focus on tap (in case focus is lost). This coexists fine with the scroll view's
-        // own pan gesture: a UITapGestureRecognizer only recognizes on a touch sequence that
-        // ends without exceeding its movement threshold, so a drag fails the tap recognizer and
-        // the scroll view's pan recognizer proceeds normally — unlike the two competing
-        // UIPanGestureRecognizers this fix removes, there is no real ambiguity here.
-        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.focusTerminal))
-        tap.cancelsTouchesInView = false
-        tv.addGestureRecognizer(tap)
+        // No automatic keyboard and no tap-to-focus: the keyboard opens only
+        // from «⌨︎ Клавиатура» (spec 5.6). Pinch changes the font size.
+        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinched))
+        tv.addGestureRecognizer(pinch)
 
         return tv
     }
@@ -103,8 +99,21 @@ struct RemoteTerminalView: UIViewRepresentable {
             self.relay = relay
         }
 
-        @objc func focusTerminal(_ gesture: UITapGestureRecognizer) {
-            gesture.view?.becomeFirstResponder()
+        private var pinchBase = TerminalFont.defaultSize
+
+        @MainActor @objc func pinched(_ gesture: UIPinchGestureRecognizer) {
+            guard let tv = gesture.view as? SwiftTerm.TerminalView else { return }
+            switch gesture.state {
+            case .began:
+                pinchBase = session.fontSize
+            case .changed, .ended:
+                let size = TerminalFont.pinched(from: pinchBase, scale: gesture.scale)
+                guard size != session.fontSize else { return }
+                session.fontSize = size
+                tv.font = UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+            default:
+                break
+            }
         }
 
         func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
@@ -136,75 +145,5 @@ struct RemoteTerminalView: UIViewRepresentable {
         func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {}
         func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {}
         func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {}
-    }
-}
-
-// MARK: - QuickCommandBar
-
-struct QuickCommand: Identifiable {
-    let id = UUID()
-    let label: String
-    let bytes: [UInt8]       // raw bytes to send (supports escape sequences)
-    let newline: Bool        // append \n after bytes
-
-    /// Shortcut that sends a plain text command followed by newline
-    static func cmd(_ label: String, _ text: String) -> QuickCommand {
-        QuickCommand(label: label, bytes: Array(text.utf8), newline: true)
-    }
-    /// Shortcut that sends raw escape bytes (no newline)
-    static func esc(_ label: String, _ sequence: [UInt8]) -> QuickCommand {
-        QuickCommand(label: label, bytes: sequence, newline: false)
-    }
-}
-
-private let quickCommands: [QuickCommand] = [
-    // Navigation keys
-    .esc("↑",         [0x1B, 0x5B, 0x41]),  // cursor up / prev history
-    .esc("↓",         [0x1B, 0x5B, 0x42]),  // cursor down / next history
-    .esc("Tab",       [0x09]),               // autocomplete
-    .esc("Ctrl+C",    [0x03]),               // interrupt
-    .esc("Ctrl+D",    [0x04]),               // EOF / exit
-    // Claude launchers
-    .cmd("✦ claude",  "claude"),
-    .cmd("⚠ claude",  "claude --dangerously-skip-permissions"),
-    // Common shell
-    .cmd("ls",        "ls -la"),
-    .cmd("pwd",       "pwd"),
-    .cmd("cd ~",      "cd ~"),
-    .cmd("clear",     "clear"),
-    .cmd("git log",   "git log --oneline -15"),
-    .cmd("git st",    "git status"),
-    .cmd("git diff",  "git diff"),
-    .cmd("ps",        "ps aux | head -20"),
-    .cmd("df",        "df -h"),
-]
-
-struct QuickCommandBar: View {
-    let onSend: ([UInt8]) -> Void
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(quickCommands) { cmd in
-                    Button {
-                        var bytes = cmd.bytes
-                        if cmd.newline { bytes.append(0x0A) }
-                        onSend(bytes)
-                    } label: {
-                        Text(cmd.label)
-                            .font(.system(size: 13, weight: .medium, design: .monospaced))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Color(.secondarySystemBackground))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-        }
-        .background(.bar)
     }
 }

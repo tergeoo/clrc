@@ -33,4 +33,11 @@ struct SessionNamingTests {
         #expect(SessionNaming.autoName(for: "claude", index: 4) == "Claude 4")
         #expect(SessionNaming.autoName(for: "htop", index: 5) == "Session 5")
     }
+
+    @Test("a bare cd («Терминал здесь») still names the project")
+    func bareCdNamesProject() {
+        #expect(SessionNaming.projectPath(from: ShellCommand.cd("/u/my api")) == "/u/my api")
+        #expect(SessionNaming.autoName(for: ShellCommand.cd("/u/my api"), index: 1) == "my api")
+        #expect(SessionNaming.projectPath(from: "cd ~") == nil)
+    }
 }

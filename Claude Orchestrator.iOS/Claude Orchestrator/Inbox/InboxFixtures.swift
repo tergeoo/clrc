@@ -92,7 +92,7 @@ enum InboxFixtures {
     }
 }
 
-/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading | newtask | chat | brief | chatworking | chaterror | chatinput):
+/// `-designPreview <state>` (normal | answered | offline | macoffline | empty | loading | newtask | chat | brief | chatworking | chaterror | chatinput | terminal | terminalreconnect | terminalended):
 /// the 2.0 shell over fixture data, no relay or sign-in involved.
 struct DesignPreviewRoot: View {
     let state: String
@@ -100,6 +100,8 @@ struct DesignPreviewRoot: View {
     var body: some View {
         if state == "newtask" {
             NewTaskPreviewHost()
+        } else if TerminalPreviewHost.states.contains(state) {
+            TerminalPreviewHost(state: state)
         } else if ChatPreviewHost.states.contains(state) {
             ChatPreviewHost(state: state)
         } else {
@@ -126,18 +128,9 @@ struct DesignPreviewRoot: View {
         @State private var shown = true
 
         init() {
-            let url = URL(string: "http://127.0.0.1:9")!
-            let relay = RelayWebSocket(relayURL: url, authService: AuthService(relayURL: url))
-            relay.agents = [Agent(id: "mbp", name: "mbp-work", connected: true),
-                            Agent(id: "mini", name: "mac-mini", connected: true)]
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clrc-design-preview", isDirectory: true)
-            try? FileManager.default.removeItem(at: dir)
-            let store = SessionsStore(directory: dir)
-            for path in ["/Users/g/startups/clrc", "/Users/g/startups/web", "/Users/g/startups/api"] {
-                store.addRecentProject(path, agentID: "mbp")
-            }
+            let (relay, manager) = PreviewEnvironment.make(agents: PreviewEnvironment.macs, recents: PreviewEnvironment.recents)
             _relay = StateObject(wrappedValue: relay)
-            _sessionManager = StateObject(wrappedValue: SessionManager(relay: relay, store: store))
+            _sessionManager = StateObject(wrappedValue: manager)
         }
 
         var body: some View {
