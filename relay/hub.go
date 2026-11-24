@@ -57,7 +57,7 @@ type Hub struct {
 	mu       sync.RWMutex
 
 	registerAgent    chan *AgentConn
-	unregisterAgent  chan string
+	unregisterAgent  chan *AgentConn
 	registerClient   chan *ClientConn
 	unregisterClient chan *ClientConn
 
@@ -77,7 +77,7 @@ func NewHub() *Hub {
 		clients:          make(map[*ClientConn]struct{}),
 		sessions:         make(map[string]*Session),
 		registerAgent:    make(chan *AgentConn, 16),
-		unregisterAgent:  make(chan string, 16),
+		unregisterAgent:  make(chan *AgentConn, 16),
 		registerClient:   make(chan *ClientConn, 16),
 		unregisterClient: make(chan *ClientConn, 16),
 	}
@@ -87,23 +87,16 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case agent := <-h.registerAgent:
-			h.mu.Lock()
-			h.agents[agent.ID] = agent
-			h.mu.Unlock()
+			h.addAgent(agent)
 			log.Printf("Agent registered: %s (%s)", agent.Name, agent.ID)
 			h.broadcastAgentList()
 
-		case agentID := <-h.unregisterAgent:
-			h.mu.Lock()
-			delete(h.agents, agentID)
-			// Clean up sessions for this agent
-			for sid, sess := range h.sessions {
-				if sess.Agent.ID == agentID {
-					delete(h.sessions, sid)
-				}
+		case agent := <-h.unregisterAgent:
+			if h.removeAgent(agent) {
+				log.Printf("Agent disconnected: %s", agent.ID)
+			} else {
+				log.Printf("Stale agent connection closed: %s (a newer one is registered)", agent.ID)
 			}
-			h.mu.Unlock()
-			log.Printf("Agent disconnected: %s", agentID)
 			h.broadcastAgentList()
 
 		case client := <-h.registerClient:
@@ -133,6 +126,34 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 		}
 	}
+}
+
+// addAgent registers conn under its ID, replacing any older connection.
+func (h *Hub) addAgent(conn *AgentConn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.agents[conn.ID] = conn
+}
+
+// removeAgent drops the sessions routed through conn and, if conn is still
+// the registered connection for its ID, the agent itself. A quickly
+// reconnecting agent registers its new connection before the old one's
+// disconnect is processed; matching by connection rather than by ID keeps
+// that stale disconnect from evicting the live agent. Reports whether the
+// agent was removed.
+func (h *Hub) removeAgent(conn *AgentConn) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for sid, sess := range h.sessions {
+		if sess.Agent == conn {
+			delete(h.sessions, sid)
+		}
+	}
+	if h.agents[conn.ID] != conn {
+		return false
+	}
+	delete(h.agents, conn.ID)
+	return true
 }
 
 func (h *Hub) broadcastAgentList() {
@@ -358,7 +379,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 
 	hub.registerAgent <- agent
 	defer func() {
-		hub.unregisterAgent <- agent.ID
+		hub.unregisterAgent <- agent
 	}()
 
 	// Read loop
