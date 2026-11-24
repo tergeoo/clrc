@@ -93,8 +93,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # A tag push checks out a detached HEAD, which cannot be pushed back.
+      # Check out the default branch instead: the formula/cask commit lands there,
+      # which is where `brew tap tergeoo/clrc` reads them from.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.repository.default_branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download all artifacts
@@ -129,33 +133,23 @@ jobs:
             ```
 
       - name: Update Homebrew formula and cask
+        env:
+          VERSION: ${{ github.ref_name }}
+          BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          VERSION="${{ github.ref_name }}"
-          VER="${VERSION#v}"
           ARM64_SHA=$(sha256sum dist/clrc-darwin-arm64 | awk '{print $1}')
           AMD64_SHA=$(sha256sum dist/clrc-darwin-amd64 | awk '{print $1}')
-
-          # Update Formula/clrc.rb
-          sed -i \
-            -e "s|version \"[^\"]*\"|version \"${VER}\"|" \
-            Formula/clrc.rb
-          sed -i \
-            -e "/clrc-darwin-arm64/{n; s|sha256 \"[^\"]*\"|sha256 \"${ARM64_SHA}\"|}"\
-            -e "/clrc-darwin-amd64/{n; s|sha256 \"[^\"]*\"|sha256 \"${AMD64_SHA}\"|}"\
-            Formula/clrc.rb
-
-          # Update Casks/clrc.rb
-          sed -i \
-            -e "s|version \"[^\"]*\"|version \"${VER}\"|" \
-            -e "s|arm:   \"[^\"]*\"|arm:   \"${ARM64_SHA}\"|" \
-            -e "s|intel: \"[^\"]*\"|intel: \"${AMD64_SHA}\"|" \
-            Casks/clrc.rb
+          sh scripts/update-homebrew.sh "$VERSION" "$ARM64_SHA" "$AMD64_SHA"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/clrc.rb Casks/clrc.rb
-          git diff --staged --quiet || git commit -m "chore: update formula and cask to ${VERSION}"
-          git push
+          if git diff --staged --quiet; then
+            echo "Formula and cask already at ${VERSION}"
+            exit 0
+          fi
+          git commit -m "chore: update formula and cask to ${VERSION}"
+          git push origin "HEAD:${BRANCH}"
 
   # ── Build and push Docker image to GHCR ─────────────────────────────────────
   docker:
