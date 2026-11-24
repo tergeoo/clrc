@@ -443,6 +443,14 @@ final class RelayWebSocket: NSObject, ObservableObject {
                   "payload": ["agent_id": agentID, "request_id": requestID, "path": path] as [String: Any]])
     }
 
+    // MARK: - Push
+
+    /// Registers this device for report pushes (sent after every connect).
+    func sendPushRegister(token: String, sandbox: Bool, notify: [String]) {
+        sendJSON(["type": "push_register",
+                  "payload": ["device_token": token, "sandbox": sandbox, "notify": notify] as [String: Any]])
+    }
+
     // MARK: - Git API
 
     /// `git_status` for the project at `path`; the completion gets the raw

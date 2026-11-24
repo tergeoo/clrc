@@ -22,6 +22,8 @@ final class AuthService: ObservableObject {
     }
 
     var currentAccessToken: String? { accessToken }
+    /// The relay base URL (for HTTP calls such as /chat/reply).
+    var currentRelayURL: URL { relayURL }
 
     /// Points this service at a different relay. Tokens stored in the
     /// Keychain are not scoped per relay — there is one fixed

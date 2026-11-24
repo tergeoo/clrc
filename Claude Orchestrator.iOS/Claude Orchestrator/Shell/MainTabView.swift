@@ -1,4 +1,5 @@
 import SwiftUI
+import ClrcCore
 
 enum MainTab: Hashable {
     case inbox, review, projects, settings
@@ -13,6 +14,7 @@ struct MainTabView: View {
 
     @State private var tab: MainTab = .inbox
     @State private var inboxPath = NavigationPath()
+    @ObservedObject private var push = PushManager.shared
 
     var body: some View {
         TabView(selection: $tab) {
@@ -40,5 +42,13 @@ struct MainTabView: View {
                 .tag(MainTab.settings)
         }
         .tint(Palette.tint)
+        // A tapped notification opens its chat in the Inbox.
+        .onChange(of: push.openRequest) { _, target in
+            guard let target, sessionManager.chatSessions.contains(where: { $0.id == target.sessionID }) else { return }
+            tab = .inbox
+            inboxPath = NavigationPath()
+            inboxPath.append(SessionRoute.chat(id: target.sessionID))
+            push.openRequest = nil
+        }
     }
 }

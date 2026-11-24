@@ -141,7 +141,11 @@ struct SettingsScreen: View {
                     Label("GitLab", systemImage: "arrow.triangle.branch")
                 }
             }
-            soonRow("Уведомления", symbol: "bell")
+            NavigationLink {
+                NotificationSettingsView()
+            } label: {
+                Label("Уведомления", systemImage: "bell")
+            }
         }
     }
 
@@ -278,5 +282,37 @@ struct ListEditor: View {
 
     private func save() {
         UserDefaults.standard.set(StoredList.encode(items), forKey: key)
+    }
+}
+
+/// Settings → Уведомления: which report statuses send a push.
+struct NotificationSettingsView: View {
+    @AppStorage(PushNotify.storageKey) private var stored = PushNotify.encode(PushNotify.allStatuses)
+
+    private static let labels = ["needs_input": "Ждёт ответа", "failed": "Ошибка", "done": "Готово"]
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(PushNotify.allStatuses, id: \.self) { status in
+                    Toggle(Self.labels[status] ?? status, isOn: binding(status))
+                }
+            } footer: {
+                Text("Push приходит, когда Claude заканчивает ход с этим статусом. На вопросы можно ответить прямо из уведомления. Нужен relay с настроенными APNS_*.")
+            }
+        }
+        .navigationTitle("Уведомления")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func binding(_ status: String) -> Binding<Bool> {
+        Binding(
+            get: { PushNotify.decode(stored).contains(status) },
+            set: { on in
+                var set = Set(PushNotify.decode(stored))
+                if on { set.insert(status) } else { set.remove(status) }
+                stored = PushNotify.encode(PushNotify.allStatuses.filter(set.contains))
+                PushManager.shared.registerWithRelay()
+            })
     }
 }

@@ -18,7 +18,7 @@ iPhone (SwiftUI) ──WS──▶ Relay (Go) ◀──WS── clrc agent (Go d
 - **`Claude Orchestrator.iOS/`** — SwiftUI iPhone app (Xcode project, iOS 26). 2.0 shell:
   tab bar Входящие · Ревью · Проекты · Настройки (`Shell/`), sessions pushed full screen via
   `SessionRoute`; Inbox (`Inbox/`, `InboxModel` → `InboxContent` → pure `InboxScreen`), New Task
-  sheet (`NewTask/`), chat (`Chat/`), diff and Review tab (`Diff/`, `Review/`, `GitClient`), terminal (`Terminal/`), Projects tab (`Projects/`), folder
+  sheet (`NewTask/`), chat (`Chat/`), diff and Review tab (`Diff/`, `Review/`, `GitClient`), GitLab review (`GitLab/`, token in Keychain), push (`Push/`, `AppDelegate`), terminal (`Terminal/`), Projects tab (`Projects/`), folder
   browser and file viewer (`Files/`, `FSClient` with a 10 s timeout), Settings (`Settings/`,
   editable quick replies/templates via `UserPreferences`), sign-in (`Onboarding/`), shared look in
   `DesignSystem/` (palette, `StatusIcon`, `.cardStyle()`).
@@ -86,7 +86,7 @@ Every text control message is a JSON envelope `{ "type": string, "payload": <raw
 There is no shared `proto` package (an older `proto/messages.go` was removed). When you add or change a message type, update all three.
 
 **Two transport channels on the same socket:**
-- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `git_status`, `git_diff`, `agent_list`, `session_ready`, `error`, `*_result`).
+- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `git_status`, `git_diff`, `push_register` (client → relay), `agent_list`, `session_ready`, `error`, `*_result`).
 - **Binary frames** = raw terminal bytes, wrapped in a custom framing: `[4-byte big-endian session_id length][session_id][payload]`. See `encodeBinaryFrame`/`decodeBinaryFrame`, duplicated in both `relay/hub.go` and `agent/ws_client.go`.
 - `connect` carries an optional `name` (session display name). The agent persists it
   (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
@@ -119,7 +119,7 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 ### Required relay env vars (`relay/cmd/main.go` fails fast if missing)
 
-`JWT_SECRET`, `ADMIN_PASSWORD`, `AGENT_SECRET`. Optional `PORT` (default `8080`). Optional `TLS_CERT_FILE` + `TLS_KEY_FILE` (set both) → relay serves https/wss directly via `ListenAndServeTLS`; leave unset when TLS is terminated upstream (Railway/Cloudflare) or the relay is only on a private network (Tailscale). Remote-access topologies: `docs/REMOTE-ACCESS.md`.
+`JWT_SECRET`, `ADMIN_PASSWORD`, `AGENT_SECRET`. Optional `PORT` (default `8080`). Optional push: `APNS_KEY_FILE` (.p8), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_TOPIC` (+ `APNS_SANDBOX=1` for development builds) — the relay sends an APNs alert for every chat `report` to devices registered with `push_register`; missing/broken config only disables push. `POST /chat/reply` (Bearer access token) forwards an answer given from a notification straight to the agent. Optional `TLS_CERT_FILE` + `TLS_KEY_FILE` (set both) → relay serves https/wss directly via `ListenAndServeTLS`; leave unset when TLS is terminated upstream (Railway/Cloudflare) or the relay is only on a private network (Tailscale). Remote-access topologies: `docs/REMOTE-ACCESS.md`.
 
 ## Conventions / constraints
 
