@@ -46,12 +46,8 @@ public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
     /// `$` and newlines reach Claude literally.
     public static func terminalCommand(cwd: String?, prompt: String?) -> String {
         var claude = "claude"
-        if let prompt, !prompt.isEmpty { claude += " " + shellQuoted(prompt) }
+        if let prompt, !prompt.isEmpty { claude += " " + ShellCommand.quoted(prompt) }
         guard let cwd, !cwd.isEmpty, cwd != "~" else { return claude }
-        return "cd \(shellQuoted(cwd)) && \(claude)"
-    }
-
-    private static func shellQuoted(_ text: String) -> String {
-        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        return "cd \(ShellCommand.quoted(cwd)) && \(claude)"
     }
 }
