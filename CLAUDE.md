@@ -18,12 +18,14 @@ iPhone (SwiftUI) ──WS──▶ Relay (Go) ◀──WS── clrc agent (Go d
 - **`Claude Orchestrator.iOS/`** — SwiftUI iPhone app (Xcode project, iOS 26). 2.0 shell:
   tab bar Входящие · Ревью · Проекты · Настройки (`Shell/`), sessions pushed full screen via
   `SessionRoute`; Inbox (`Inbox/`, `InboxModel` → `InboxContent` → pure `InboxScreen`), New Task
-  sheet (`NewTask/`), shared look in `DesignSystem/` (palette, `StatusIcon`, `.cardStyle()`).
+  sheet (`NewTask/`), chat (`Chat/`), terminal (`Terminal/`), Projects tab (`Projects/`), folder
+  browser and file viewer (`Files/`, `FSClient` with a 10 s timeout), shared look in
+  `DesignSystem/` (palette, `StatusIcon`, `.cardStyle()`).
   Testable logic lives in the local SwiftPM package `Claude Orchestrator.iOS/ClrcCore`
   (`swift test`): session status, inbox sections, tool labels, answer undo queue, launch
   planning; the app persists sessions locally and auto-reattaches on launch. Debug builds
-  accept `-designPreview <normal|answered|offline|macoffline|empty|loading|newtask>` to render
-  screens over fixtures without a relay. Redesign spec/mockups: `docs/design/2.0.0/`.
+  accept `-designPreview <state>` to render screens over fixtures without a relay (states are
+  listed in `Inbox/InboxFixtures.swift` → `DesignPreviewRoot`). Redesign spec/mockups: `docs/design/2.0.0/`.
 - **`mac-installer/`** — one-click macOS menu-bar installer (Tailscale topology).
   `ClrcInstallerCore` is a standalone SwiftPM package holding all the tested logic
   behind a mockable `CommandRunner` boundary (join/pair `clrc://` deep links,

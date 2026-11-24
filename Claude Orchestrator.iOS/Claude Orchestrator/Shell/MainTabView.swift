@@ -28,7 +28,7 @@ struct MainTabView: View {
                 .tabItem { Label("Ревью", systemImage: "checklist") }
                 .tag(MainTab.review)
 
-            AgentListView()
+            ProjectsView()
                 .tabItem { Label("Проекты", systemImage: "folder") }
                 .tag(MainTab.projects)
 
