@@ -13,9 +13,19 @@ struct ChatScreen: View {
 
     @State private var draft = ""
     @State private var composing = false
+    @State private var sendGate = SendGate()
+    /// Bumped on send to restart the timeout task.
+    @State private var sendToken = 0
+    /// Set when the gate's timeout passes, so the screen re-renders.
+    @State private var gateCheckedAt = Date.distantPast
 
     var body: some View {
         ChatContentView(content: content, actions: actions, draft: $draft, composing: $composing)
+            .task(id: sendToken) {
+                guard sendToken > 0 else { return }
+                try? await Task.sleep(for: .seconds(SendGate.timeout))
+                gateCheckedAt = Date()
+            }
     }
 
     private var content: ChatContent {
@@ -30,7 +40,11 @@ struct ChatScreen: View {
         content.contextHeader = latest?.header ?? ""
         content.turns = transcript.turns
         content.isWorking = session.isWorking
-        content.retryText = transcript.lastUserText
+        content.isSending = sendGate.isBlocking(lastSeq: transcript.lastSeq, now: Date())
+        if let lastTurn = transcript.turns.last, lastTurn.failureMessage != nil,
+           let errorSeq = lastTurn.events.last(where: { $0.kind == .error })?.seq {
+            content.retryText = transcript.retryText(beforeErrorSeq: errorSeq)
+        }
         // Only the newest turn's questions are still open, until answered.
         let lastTurn = transcript.turns.last
         content.chips = QuickReplies.chips(for: lastTurn?.isAnswered == false ? lastTurn?.report : nil)
@@ -45,6 +59,8 @@ struct ChatScreen: View {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
                 relay.sendChatMessage(sessionID: session.id, text: trimmed)
+                sendGate.begin(atSeq: session.transcript.lastSeq, now: Date())
+                sendToken += 1
             },
             fillDraft: { text in
                 draft = text
@@ -95,6 +111,7 @@ struct ChatContentView: View {
                         ChatTurnView(turn: turn, mode: content.mode,
                                      isLast: turn.id == content.turns.last?.id,
                                      isWorking: content.isWorking,
+                                     isSending: content.isSending,
                                      retryText: content.retryText,
                                      actions: actions)
                     }

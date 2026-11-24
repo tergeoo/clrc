@@ -12,6 +12,7 @@ struct ChatTurnView: View {
     let mode: ChatDisplayMode
     let isLast: Bool
     let isWorking: Bool
+    var isSending = false
     let retryText: String?
     let actions: ChatActions
 
@@ -19,7 +20,7 @@ struct ChatTurnView: View {
 
     private var userTexts: [ChatEvent] { turn.events.filter { $0.kind == .userText } }
     /// Answer buttons work only for the open question of the newest turn.
-    private var answersActive: Bool { isLast && !isWorking && !turn.isAnswered }
+    private var answersActive: Bool { isLast && !isWorking && !isSending && !turn.isAnswered }
 
     private var costText: String? {
         turn.endEvent.flatMap { turnCostText(costUSD: $0.costUSD, durationMS: $0.durationMS) }
@@ -58,10 +59,18 @@ struct ChatTurnView: View {
 
     @ViewBuilder
     private var outcome: some View {
-        if let message = turn.errorMessage {
+        ForEach(turn.noteErrors) { note in
+            Label(note.message, systemImage: "exclamationmark.triangle")
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.meta)
+                .lineLimit(3)
+        }
+        if let message = turn.failureMessage {
             ErrorCard(message: message, retryText: isLast ? retryText : nil, send: actions.send)
+                .disabled(isSending)
         } else if turn.wasInterrupted {
             InterruptedRow(showContinue: isLast) { actions.send("Продолжай") }
+                .disabled(isSending)
         } else if isLast && isWorking && turn.endEvent == nil {
             TurnProgressRow(tool: turn.currentTool, startedAt: turn.startedAt)
         }

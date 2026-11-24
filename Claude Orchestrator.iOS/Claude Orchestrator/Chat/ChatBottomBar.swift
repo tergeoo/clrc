@@ -46,8 +46,8 @@ struct ChatBottomBar: View {
             }
             .padding(.horizontal, 4)
         }
-        .disabled(content.isWorking)
-        .opacity(content.isWorking ? 0.5 : 1)
+        .disabled(content.isWorking || content.isSending)
+        .opacity(content.isWorking || content.isSending ? 0.5 : 1)
     }
 
     private var readRow: some View {

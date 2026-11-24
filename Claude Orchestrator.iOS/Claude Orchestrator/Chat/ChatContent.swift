@@ -13,6 +13,8 @@ struct ChatContent {
     var contextHeader = ""
     var turns: [ChatTurn] = []
     var isWorking = false
+    /// A reply is on its way (`SendGate`): one-tap replies are disabled.
+    var isSending = false
     /// What «Повторить» sends again; nil hides the button.
     var retryText: String?
     var chips: [QuickReply] = QuickReplies.chips(for: nil)

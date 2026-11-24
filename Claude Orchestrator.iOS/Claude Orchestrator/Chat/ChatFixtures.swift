@@ -69,7 +69,9 @@ enum ChatFixtures {
         c.contextHeader = "tergeo · personal"
         c.status = SessionStatus.derive(isWorking: c.isWorking, lastError: state == "chaterror" ? "x" : nil,
                                         report: transcript.latestReport)
-        c.retryText = transcript.lastUserText
+        if let errorSeq = transcript.turns.last?.events.last(where: { $0.kind == .error })?.seq {
+            c.retryText = transcript.retryText(beforeErrorSeq: errorSeq)
+        }
         let last = transcript.turns.last
         c.chips = QuickReplies.chips(for: last?.isAnswered == false ? last?.report : nil)
         c.changedFiles = report.changedFiles

@@ -26,7 +26,11 @@ struct ChatHeader: View {
                 .frame(maxWidth: .infinity)
 
             HStack(spacing: 8) {
-                if content.isWorking { WorkingBadge() }
+                if content.isWorking {
+                    WorkingBadge(text: "работает")
+                } else if content.isSending {
+                    WorkingBadge(text: "отправка…")
+                }
                 if let ok = content.contextOK {
                     Button { showContext = true } label: {
                         StatusDot(color: ok ? Palette.green : Palette.red, size: 8)
@@ -95,10 +99,12 @@ struct ChatHeader: View {
 }
 
 struct WorkingBadge: View {
+    let text: String
+
     var body: some View {
         HStack(spacing: 5) {
             StatusDot(color: Palette.blue, size: 6)
-            Text("работает").font(.system(size: 12, weight: .semibold))
+            Text(text).font(.system(size: 12, weight: .semibold))
         }
         .foregroundStyle(Palette.tint)
         .padding(.horizontal, 8)
