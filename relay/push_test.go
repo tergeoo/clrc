@@ -226,6 +226,11 @@ func TestReportEventTriggersPush(t *testing.T) {
 
 // connectPairWithHub is connectPair that also returns the relay's hub.
 func connectPairWithHub(t *testing.T) (*Hub, *websocket.Conn, *websocket.Conn) {
+	hub, _, agent, client := connectPairWithAuth(t)
+	return hub, agent, client
+}
+
+func connectPairWithAuth(t *testing.T) (*Hub, *Auth, *websocket.Conn, *websocket.Conn) {
 	t.Helper()
 	hub, auth, base := newTestRelay(t)
 	agent := dial(t, base+"/ws/agent")
@@ -237,5 +242,5 @@ func connectPairWithHub(t *testing.T) (*Hub, *websocket.Conn, *websocket.Conn) {
 	client := dial(t, base+"/ws/client")
 	writeMsg(t, client, "auth", map[string]any{"token": token})
 	time.Sleep(100 * time.Millisecond)
-	return hub, agent, client
+	return hub, auth, agent, client
 }

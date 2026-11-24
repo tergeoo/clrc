@@ -52,6 +52,7 @@ func main() {
 	})
 	mux.HandleFunc("/auth/login", auth.LoginHandler)
 	mux.HandleFunc("/auth/refresh", auth.RefreshHandler)
+	mux.Handle("/chat/reply", relay.ChatReplyHandler(hub, auth))
 	mux.HandleFunc("/ws/agent", func(w http.ResponseWriter, r *http.Request) {
 		relay.HandleAgentWS(w, r, hub, agentSecret)
 	})
