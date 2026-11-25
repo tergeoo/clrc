@@ -1,9 +1,9 @@
 cask "clrc" do
   arch arm: "arm64", intel: "amd64"
 
-  version "2.1.0"
-  sha256 arm:   "75259f0f0267aa06834736118ea21c5f73b64b4fb36ce595ae7302ca18ca0770",
-         intel: "36f0b19364003956aa1fdcef9ffe1954b3077b9a609f6c4de94a261df55d5bf0"
+  version "2.2.0"
+  sha256 arm:   "0ef2a448aeb25d0abb80b64979fd42e73098d6e523ceb87ffe2cf28b96de51de",
+         intel: "83d9c618a50966c5ec775c4849b12310b9804dce286095bdbc771dfe0edd6590"
 
   url "https://github.com/tergeoo/clrc/releases/download/v#{version}/clrc-darwin-#{arch}"
   name "clrc"
