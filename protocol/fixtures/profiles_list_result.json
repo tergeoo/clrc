@@ -1,0 +1,27 @@
+{
+  "type": "profiles_list_result",
+  "payload": {
+    "request_id": "req-2",
+    "default_profile": "personal",
+    "profiles": [
+      {
+        "name": "personal",
+        "description": "Personal",
+        "launch_args": ["--dangerously-skip-permissions"],
+        "harness": true
+      },
+      {
+        "name": "rtd",
+        "description": "RTD Lab (gitlab.rtdlab.cloud): Go backend monorepo",
+        "launch_args": ["--dangerously-skip-permissions"],
+        "harness": true
+      },
+      {
+        "name": "solo",
+        "description": "",
+        "launch_args": [],
+        "harness": false
+      }
+    ]
+  }
+}

@@ -2,9 +2,11 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -101,4 +103,55 @@ func TestContractSessionsListMatchesFixture(t *testing.T) {
 		t.Fatalf("marshal sessions_list: %v", err)
 	}
 	assertJSONEqual(t, got, msg.Payload)
+}
+
+func TestContractProfilesListMatchesFixture(t *testing.T) {
+	msg := loadFixture(t, "profiles_list_result.json")
+	var want struct {
+		RequestID      string `json:"request_id"`
+		DefaultProfile string `json:"default_profile"`
+		Profiles       []struct {
+			Name        string   `json:"name"`
+			Description string   `json:"description"`
+			LaunchArgs  []string `json:"launch_args"`
+			Harness     bool     `json:"harness"`
+		} `json:"profiles"`
+	}
+	decodeStrict(t, msg.Payload, &want)
+
+	var harness []HarnessProfile
+	var plain []string
+	for _, p := range want.Profiles {
+		if p.Harness {
+			harness = append(harness, HarnessProfile{Name: p.Name, Description: p.Description, LaunchArgs: p.LaunchArgs})
+		} else {
+			plain = append(plain, p.Name)
+		}
+	}
+	got, err := json.Marshal(profilesListPayload(want.RequestID, want.DefaultProfile, harness, plain))
+	if err != nil {
+		t.Fatalf("marshal profiles_list_result: %v", err)
+	}
+	assertJSONEqual(t, got, msg.Payload)
+}
+
+func TestHandleProfilesList(t *testing.T) {
+	home := launchFixture(t)
+	writeFile(t, home+"/.claude-notify/settings.json", "{}")
+	c, sent := capturingClient(t, Config{Profile: "rtd"})
+	c.handleProfilesList(context.Background(), json.RawMessage(`{"request_id":"r1"}`))
+
+	msgs := sent()
+	if len(msgs) != 1 || msgs[0].Type != "profiles_list_result" || msgs[0].Payload["request_id"] != "r1" {
+		t.Fatalf("sent = %+v", msgs)
+	}
+	var names []string
+	for _, p := range msgs[0].Payload["profiles"].([]any) {
+		names = append(names, p.(map[string]any)["name"].(string))
+	}
+	// rtd: synced harness; dats: defined but unsynced, so listed as a plain dir;
+	// notify, solo: plain dirs. Sorted by name.
+	if strings.Join(names, ",") != "dats,notify,rtd,solo" || msgs[0].Payload["default_profile"] != "rtd" {
+		t.Fatalf("profiles = %v default %v", names, msgs[0].Payload["default_profile"])
+	}
 }
