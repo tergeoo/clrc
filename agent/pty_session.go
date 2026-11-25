@@ -26,11 +26,10 @@ type PTYSession struct {
 }
 
 // NewPTYSession spawns a new PTY process and starts reading its output.
-// configDir, when non-empty, becomes the child's CLAUDE_CONFIG_DIR; see
-// buildChildEnv for the rest of the environment it gets.
-func NewPTYSession(id string, command string, cols, rows uint16, configDir string, sendFn func(string, []byte)) (*PTYSession, error) {
+// lp sets the child's config dir and harness env; see buildChildEnv.
+func NewPTYSession(id string, command string, cols, rows uint16, lp LaunchProfile, sendFn func(string, []byte)) (*PTYSession, error) {
 	cmd := exec.Command(command)
-	cmd.Env = ptyEnv(configDir)
+	cmd.Env = ptyEnv(lp)
 
 	ptm, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: rows, Cols: cols})
 	if err != nil {

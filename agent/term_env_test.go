@@ -72,7 +72,7 @@ func countPrefix(env []string, prefix string) int {
 func TestPTYEnvAdvertisesTerminal(t *testing.T) {
 	t.Setenv("TERM", "")
 	os.Unsetenv("TERM")
-	env := ptyEnv("")
+	env := ptyEnv(LaunchProfile{})
 	if !slices.Contains(env, "TERM=xterm-256color") {
 		t.Errorf("ptyEnv() lacks TERM=xterm-256color: %v", env)
 	}

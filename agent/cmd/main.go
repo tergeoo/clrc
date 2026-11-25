@@ -395,6 +395,9 @@ func applyClaudeSettings(cfg *agent.Config, home string) {
 		log.Printf("WARNING: %v; sessions will use the default Claude config dir", err)
 	}
 	cfg.ClaudeConfigDir = dir
+	if err == nil && dir != "" && os.Getenv("CLRC_CLAUDE_CONFIG_DIR") == "" {
+		cfg.Profile = os.Getenv("CLRC_PROFILE")
+	}
 
 	style, err := agent.OutputStyleFromEnv(os.LookupEnv)
 	if err != nil {
