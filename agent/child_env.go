@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -60,6 +61,42 @@ func hasAnyPrefix(s string, prefixes []string) bool {
 // childEnv is buildChildEnv over the agent's own environment.
 func childEnv(configDir string) []string {
 	return buildChildEnv(os.Environ(), configDir)
+}
+
+// Terminal capabilities advertised to PTY children when the agent has none.
+// SwiftTerm on the iPhone emulates xterm with truecolor.
+const (
+	defaultTerm      = "xterm-256color"
+	defaultColorTerm = "truecolor"
+)
+
+// ptyEnv is childEnv for a terminal session: it also guarantees TERM.
+func ptyEnv(configDir string) []string {
+	return ensureTerm(childEnv(configDir))
+}
+
+// ensureTerm adds TERM and COLORTERM when env lacks them. A launchd daemon
+// inherits no TERM, so without this `clear` leaves scrollback behind and
+// full-screen TUIs (claude, vim) fall back to a minimal terminfo.
+// Values already present are kept.
+func ensureTerm(env []string) []string {
+	hasTerm, hasColorTerm := false, false
+	for _, kv := range env {
+		switch {
+		case strings.HasPrefix(kv, "TERM="):
+			hasTerm = true
+		case strings.HasPrefix(kv, "COLORTERM="):
+			hasColorTerm = true
+		}
+	}
+	out := slices.Clone(env)
+	if !hasTerm {
+		out = append(out, "TERM="+defaultTerm)
+	}
+	if !hasColorTerm {
+		out = append(out, "COLORTERM="+defaultColorTerm)
+	}
+	return out
 }
 
 // profileDir maps a profile name to its Claude config directory.

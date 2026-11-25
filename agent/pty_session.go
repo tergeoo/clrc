@@ -30,7 +30,7 @@ type PTYSession struct {
 // buildChildEnv for the rest of the environment it gets.
 func NewPTYSession(id string, command string, cols, rows uint16, configDir string, sendFn func(string, []byte)) (*PTYSession, error) {
 	cmd := exec.Command(command)
-	cmd.Env = childEnv(configDir)
+	cmd.Env = ptyEnv(configDir)
 
 	ptm, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: rows, Cols: cols})
 	if err != nil {
