@@ -426,7 +426,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 			}
 			switch textMsg.Type {
 			case "sessions_list", "fs_list_result", "fs_mkdir_result", "fs_delete_result", "fs_read_result", "chat_history_result",
-				"git_status_result", "git_diff_result":
+				"git_status_result", "git_diff_result", "profiles_list_result":
 				var pl struct {
 					RequestID string `json:"request_id"`
 				}
@@ -438,6 +438,19 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 					cl.Send(routeCtx, websocket.MessageText, respData)
 					cancel()
 				}
+			case "error":
+				// An error about one session (e.g. a refused strict profile)
+				// goes to the client that owns it; agent-wide errors stay in
+				// the log.
+				var pl struct {
+					SessionID string `json:"session_id"`
+				}
+				json.Unmarshal(textMsg.Payload, &pl)
+				if pl.SessionID == "" {
+					log.Printf("Agent %s error (no session)", agent.ID)
+					break
+				}
+				hub.RouteTextToClient(pl.SessionID, data)
 			case "chat_send_result":
 				var ack replyAck
 				json.Unmarshal(textMsg.Payload, &ack)
@@ -615,7 +628,7 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 		}
 
 		switch incoming.Type {
-		case "list_sessions":
+		case "list_sessions", "profiles_list":
 			var pl struct {
 				AgentID   string `json:"agent_id"`
 				RequestID string `json:"request_id"`
@@ -628,7 +641,7 @@ func HandleClientWS(w http.ResponseWriter, r *http.Request, hub *Hub, auth *Auth
 				break
 			}
 			hub.pendingRequests.Store(pl.RequestID, client)
-			fwd := Message{Type: "list_sessions", Payload: mustMarshal(map[string]string{"request_id": pl.RequestID})}
+			fwd := Message{Type: incoming.Type, Payload: mustMarshal(map[string]string{"request_id": pl.RequestID})}
 			fwdData, _ := json.Marshal(fwd)
 			agent.Send(ctx, websocket.MessageText, fwdData)
 
