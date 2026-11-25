@@ -51,10 +51,11 @@ private func fixturePayload(_ name: String) throws -> [String: Any] {
     (nil, true),            // agent older than 2.1 reports nothing
     ("", true),
     ("1.2.0", true),
-    ("2.0.0", false),       // == minimumSupported
-    ("2.1.0", false),
+    ("2.1.0", true),        // ignores profile_strict
+    ("2.2.0", false),       // == minimumSupported
+    ("2.3.0", false),
     ("10.0.0", false),      // numeric, not lexicographic
-    ("2.0.0-5-gc23f7d5-dirty", false), // local `git describe` build
+    ("2.2.0-5-gc23f7d5-dirty", false), // local `git describe` build
     ("dev", false),         // local build without tags: never nag
     ("garbage", false),
 ] as [(String?, Bool)])

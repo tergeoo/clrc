@@ -128,3 +128,41 @@ func resolverPrecedence(task: String?, project: ProjectConfig?, settings: String
     let old = try decoder.decode(PersistedSession.self, from: Data(legacy.utf8))
     #expect(old.profile == nil && !old.profileStrict)
 }
+
+// MARK: - Review fixes
+
+@Test(arguments: [
+    (nil, false), ("2.1.0", false), ("2.2.0", true), ("2.2.0-3-gabc", true), ("3.0.0", true), ("dev", true),
+] as [(String?, Bool)])
+func strictProfilesNeedAgent22(version: String?, supported: Bool) {
+    #expect(AgentVersion.supportsStrictProfiles(version) == supported)
+}
+
+@Test func defaultLabelInsideSavedProjectNamesTheProject() {
+    #expect(LaunchProfileResolver.defaultLabel(settingsProfile: "work", macDefault: "personal", projectProfile: "rtd")
+        == "Как в проекте (rtd)")
+    #expect(LaunchProfileResolver.defaultLabel(settingsProfile: "work", macDefault: "personal", projectProfile: nil)
+        == "По умолчанию (work — из настроек)")
+}
+
+@Test func recordedMacDefaultIsNotReplacedBySettings() {
+    let launchedWithDefault = PersistedSession(id: "s", agentID: "a", agentName: "Mac", customName: "n",
+                                               profile: nil, profileStrict: false, profileRecorded: true)
+    #expect(launchedWithDefault.launchProfile(settingsProfile: "work") == ResolvedProfile(name: nil, strict: false))
+
+    let named = PersistedSession(id: "s", agentID: "a", agentName: "Mac", customName: "n",
+                                 profile: "rtd", profileStrict: true, profileRecorded: true)
+    #expect(named.launchProfile(settingsProfile: "work") == ResolvedProfile(name: "rtd", strict: true))
+
+    // Saved before profiles were recorded: Settings, as before.
+    let legacy = PersistedSession(id: "s", agentID: "a", agentName: "Mac", customName: "n")
+    #expect(legacy.launchProfile(settingsProfile: "work") == ResolvedProfile(name: "work", strict: false))
+}
+
+@Test func profileRecordedSurvivesRoundTrip() throws {
+    let session = PersistedSession(id: "s", agentID: "a", agentName: "Mac", customName: "n",
+                                   createdAt: Date(timeIntervalSince1970: 0), profileRecorded: true)
+    let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+    let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+    #expect(try decoder.decode(PersistedSession.self, from: encoder.encode(session)).profileRecorded)
+}
