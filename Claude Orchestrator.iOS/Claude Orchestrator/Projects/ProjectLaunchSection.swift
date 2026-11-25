@@ -10,15 +10,24 @@ struct ProjectLaunchSection: View {
     @EnvironmentObject var sessionManager: SessionManager
 
     private var saved: ProjectConfig? { sessionManager.projectConfig(path: path, agentID: agentID) }
-    /// What the pickers show: the saved config, else another Mac's config for
-    /// the same folder (not saved until changed), else defaults.
-    private var shown: ProjectConfig {
-        saved ?? sessionManager.suggestedConfig(path: path, agentID: agentID) ?? ProjectConfig()
+    /// What the pickers show is exactly what a launch uses: the saved config
+    /// or the defaults. Another Mac's config is only offered as a button.
+    private var shown: ProjectConfig { saved ?? ProjectConfig() }
+    private var suggestion: ProjectConfig? {
+        saved == nil ? sessionManager.suggestedConfig(path: path, agentID: agentID) : nil
     }
     private var profiles: MacProfiles? { sessionManager.profiles(for: agentID) }
 
     var body: some View {
         Section {
+            if let suggestion {
+                Button {
+                    sessionManager.setProjectConfig(suggestion, path: path, agentID: agentID)
+                } label: {
+                    Label("Как на другом Маке: \([suggestion.profile, suggestion.mode?.title].compactMap { $0 }.joined(separator: " · "))",
+                          systemImage: "arrow.down.doc")
+                }
+            }
             ProfilePicker(
                 title: "Профиль Claude",
                 selection: Binding(get: { shown.profile }, set: { update(profile: $0, mode: shown.mode) }),

@@ -40,6 +40,10 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     var profile: String?
     var profileStrict = false
 
+    /// Builds the first command once the Mac's profiles are known (their
+    /// `launch_args`); nil = send `initialCommand` as is.
+    var pendingCommand: ((MacProfiles?) -> String)?
+
     func attach(_ view: SwiftTerm.TerminalView) {
         views.removeAll { $0.view == nil || $0.view === view }
         views.append(WeakTerminalView(view: view))

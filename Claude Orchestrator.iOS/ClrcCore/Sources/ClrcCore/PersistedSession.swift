@@ -28,6 +28,16 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
     public let profile: String?
     /// Whether that profile was sent with `profile_strict`.
     public let profileStrict: Bool
+    /// True for sessions saved since profiles are recorded: then a nil
+    /// `profile` means "the Mac default", not "unknown".
+    public let profileRecorded: Bool
+
+    /// The profile every later `connect` of this session sends: the recorded
+    /// one, or for older entries the Settings profile (the old behaviour).
+    public func launchProfile(settingsProfile: String?) -> ResolvedProfile {
+        profileRecorded ? ResolvedProfile(name: profile, strict: profileStrict)
+                        : ResolvedProfile(name: settingsProfile, strict: false)
+    }
 
     /// What «Перезапустить» runs: the stored command; for older entries,
     /// Claude in their project folder (the previous behaviour).
@@ -41,7 +51,7 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
     public init(id: String, agentID: String, agentName: String,
                 customName: String, projectPath: String? = nil, createdAt: Date = Date(),
                 kind: Kind = .pty, cwd: String? = nil, command: String? = nil,
-                profile: String? = nil, profileStrict: Bool = false) {
+                profile: String? = nil, profileStrict: Bool = false, profileRecorded: Bool = false) {
         self.id = id
         self.agentID = agentID
         self.agentName = agentName
@@ -53,10 +63,11 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         self.command = command
         self.profile = profile
         self.profileStrict = profileStrict
+        self.profileRecorded = profileRecorded
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd, command, profile, profileStrict
+        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd, command, profile, profileStrict, profileRecorded
     }
 
     public init(from decoder: Decoder) throws {
@@ -72,5 +83,6 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         command = try c.decodeIfPresent(String.self, forKey: .command)
         profile = try c.decodeIfPresent(String.self, forKey: .profile)
         profileStrict = try c.decodeIfPresent(Bool.self, forKey: .profileStrict) ?? false
+        profileRecorded = try c.decodeIfPresent(Bool.self, forKey: .profileRecorded) ?? false
     }
 }

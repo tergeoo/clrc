@@ -229,7 +229,8 @@ struct NewTaskSheet: View {
             ProfilePicker(title: "Профиль Claude", selection: $profile, profiles: profiles,
                           unavailable: sessionManager.profilesUnavailable.contains(agentID),
                           defaultLabel: LaunchProfileResolver.defaultLabel(
-                            settingsProfile: sessionManager.settingsProfile, macDefault: profiles?.defaultProfile))
+                            settingsProfile: sessionManager.settingsProfile, macDefault: profiles?.defaultProfile,
+                            projectProfile: sessionManager.projectConfig(path: projectPath, agentID: agentID)?.profile))
                 .padding(.horizontal, 14)
                 .frame(minHeight: 48)
         }

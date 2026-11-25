@@ -98,3 +98,18 @@ func TestParseEnvFile(t *testing.T) {
 		t.Errorf("skipped = %v, want [7 8]", skipped)
 	}
 }
+
+func TestParseEnvFileExpandsLikeSource(t *testing.T) {
+	env := map[string]string{"HOME": "/Users/x", "PATH": "/usr/bin"}
+	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
+	input := "export PATH=\"$HOME/bin:$PATH\"\n" +
+		"A=${HOME}/a\n" +
+		"B=$A/b\n" +
+		"C='lit$HOME'\n" +
+		"D=$MISSING-x\n"
+	vars, skipped := ParseEnvFileWith([]byte(input), lookup)
+	want := []string{"PATH=/Users/x/bin:/usr/bin", "A=/Users/x/a", "B=/Users/x/a/b", "C=lit$HOME", "D=-x"}
+	if !reflect.DeepEqual(vars, want) || len(skipped) != 0 {
+		t.Errorf("vars = %q skipped %v, want %q", vars, skipped, want)
+	}
+}

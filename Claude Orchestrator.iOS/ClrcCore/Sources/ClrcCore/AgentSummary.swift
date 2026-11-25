@@ -35,7 +35,7 @@ public struct AgentSummary: Equatable, Sendable {
 public enum AgentVersion {
     /// Oldest agent this app fully supports. Raise it when the app starts
     /// relying on a protocol feature added in a newer agent.
-    public static let minimumSupported = "2.0.0"
+    public static let minimumSupported = "2.2.0"
 
     /// True when the agent must be updated: it reported no version (pre-2.1)
     /// or a release older than `minimumSupported`. Builds whose version does
@@ -45,6 +45,18 @@ public enum AgentVersion {
         guard let have = numericTriple(reported),
               let need = numericTriple(minimumSupported) else { return false }
         return have.lexicographicallyPrecedes(need)
+    }
+
+    /// First agent that honours `profile_strict`; older ones fall back to
+    /// their default account, so a strict launch must not reach them.
+    public static let strictProfilesSince = "2.2.0"
+
+    /// Whether the agent refuses a missing strict profile. No version means
+    /// older than 2.1; a non-release version ("dev") is a current local build.
+    public static func supportsStrictProfiles(_ reported: String?) -> Bool {
+        guard let reported, !reported.isEmpty else { return false }
+        guard let have = numericTriple(reported), let need = numericTriple(strictProfilesSince) else { return true }
+        return !have.lexicographicallyPrecedes(need)
     }
 
     /// Leading "X.Y.Z" of a version string ("2.0.0-5-gabc" → [2, 0, 0]).

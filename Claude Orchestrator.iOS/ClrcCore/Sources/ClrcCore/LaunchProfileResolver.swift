@@ -29,7 +29,10 @@ public enum LaunchProfileResolver {
     }
 
     /// The picker's «default» option, named after what it resolves to now.
-    public static func defaultLabel(settingsProfile: String?, macDefault: String?) -> String {
+    /// Inside a saved project with a profile that is the project's own.
+    public static func defaultLabel(settingsProfile: String?, macDefault: String?,
+                                    projectProfile: String? = nil) -> String {
+        if let projectProfile { return "Как в проекте (\(projectProfile))" }
         if let settingsProfile { return "По умолчанию (\(settingsProfile) — из настроек)" }
         if let macDefault { return "Как на Маке (\(macDefault))" }
         return "Как на Маке"

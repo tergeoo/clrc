@@ -21,7 +21,7 @@ enum PreviewEnvironment {
         return (relay, SessionManager(relay: relay, store: store))
     }
 
-    static let macs = [Agent(id: "mbp", name: "mbp-work", connected: true, version: "2.1.0"),
+    static let macs = [Agent(id: "mbp", name: "mbp-work", connected: true, version: "2.2.0"),
                        Agent(id: "mini", name: "mac-mini", connected: true)]
     static let recents = ["mbp": ["/Users/g/startups/api", "/Users/g/startups/web", "/Users/g/startups/clrc"]]
 

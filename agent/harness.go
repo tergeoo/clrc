@@ -101,12 +101,27 @@ func LoadHarnessProfiles(home, root string) []HarnessProfile {
 
 var envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// ParseEnvFile parses the subset of shell syntax that `set -a; source` would
-// export from a simple env file: KEY=value, an optional `export ` prefix,
-// one level of matching single or double quotes, blank lines and # comments.
-// Variables are not expanded. It returns KEY=value entries and the 1-based
-// numbers of lines it could not parse (callers must not log their content).
+// ParseEnvFile is ParseEnvFileWith over the agent's own environment.
 func ParseEnvFile(data []byte) (vars []string, skippedLines []int) {
+	return ParseEnvFileWith(data, os.LookupEnv)
+}
+
+// ParseEnvFileWith parses the subset of shell syntax that `set -a; source`
+// handles in a simple env file: KEY=value, an optional `export ` prefix,
+// one level of matching single or double quotes, blank lines and # comments.
+// Like the shell, $VAR and ${VAR} are expanded (against earlier lines of the
+// file, then lookup; unset expands to empty) except inside single quotes.
+// It returns KEY=value entries and the 1-based numbers of lines it could not
+// parse (callers must not log their content).
+func ParseEnvFileWith(data []byte, lookup func(string) (string, bool)) (vars []string, skippedLines []int) {
+	defined := map[string]string{}
+	resolve := func(key string) string {
+		if v, ok := defined[key]; ok {
+			return v
+		}
+		v, _ := lookup(key)
+		return v
+	}
 	for i, line := range strings.Split(string(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -118,7 +133,13 @@ func ParseEnvFile(data []byte) (vars []string, skippedLines []int) {
 			skippedLines = append(skippedLines, i+1)
 			continue
 		}
-		vars = append(vars, key+"="+unquote(value))
+		if len(value) >= 2 && value[0] == '\'' && value[len(value)-1] == '\'' {
+			value = value[1 : len(value)-1] // single quotes: literal
+		} else {
+			value = os.Expand(unquote(value), resolve)
+		}
+		defined[key] = value
+		vars = append(vars, key+"="+value)
 	}
 	return vars, skippedLines
 }
