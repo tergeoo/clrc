@@ -3,14 +3,14 @@ import SwiftUI
 import SwiftTerm
 import ClrcCore
 
-/// `-designPreview terminal|terminalreconnect|terminalended`.
+/// `-designPreview terminal|terminalreconnect|terminalended|terminalprofilefailed`.
 struct TerminalPreviewHost: View {
     let state: String
     @StateObject private var relay: RelayWebSocket
     @StateObject private var sessionManager: SessionManager
     private let session: TerminalSession
 
-    static let states: Set<String> = ["terminal", "terminalreconnect", "terminalended"]
+    static let states: Set<String> = ["terminal", "terminalreconnect", "terminalended", "terminalprofilefailed"]
 
     init(state: String) {
         self.state = state
@@ -22,6 +22,9 @@ struct TerminalPreviewHost: View {
                                                    customName: "zsh", projectPath: "/Users/g/dev/clrc")]
         } else {
             manager.sessions = [session]
+        }
+        if state == "terminalprofilefailed" {
+            session.failure = "профиль «rtd» не найден на этом Маке — harness sync rtd"
         }
         _relay = StateObject(wrappedValue: relay)
         _sessionManager = StateObject(wrappedValue: manager)

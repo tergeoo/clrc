@@ -14,9 +14,14 @@ struct MacProjectsView: View {
     @State private var loadingRemote = false
 
     private var agent: Agent? { relay.agents.first { $0.id == agentID } }
+    private var saved: [String] {
+        ProjectIndex.filter(sessionManager.savedProjects(for: agentID), query: query)
+    }
+    /// Recent folders that are not saved projects.
     private var projects: [String] {
         guard let agent else { return [] }
-        return ProjectIndex.filter(sessionManager.recentProjects(for: agent), query: query)
+        let savedSet = Set(sessionManager.savedProjects(for: agentID))
+        return ProjectIndex.filter(sessionManager.recentProjects(for: agent), query: query).filter { !savedSet.contains($0) }
     }
     /// Live sessions on the Mac that this app does not hold yet.
     private var unattached: [RemoteSessionInfo] {
@@ -29,6 +34,18 @@ struct MacProjectsView: View {
             if agent?.connected == false {
                 Section {
                     Label("Мак не в сети", systemImage: "wifi.slash").foregroundStyle(Palette.sec)
+                }
+            }
+            if !saved.isEmpty {
+                Section("Проекты") {
+                    ForEach(saved, id: \.self) { path in
+                        NavigationLink(value: ProjectsRoute.project(agentID: agentID, path: path)) {
+                            SavedProjectRow(path: path,
+                                            config: sessionManager.projectConfig(path: path, agentID: agentID),
+                                            profiles: sessionManager.profiles(for: agentID),
+                                            sessions: ProjectIndex.sessionCount(path: path, folders: folders))
+                        }
+                    }
                 }
             }
             Section("Недавние проекты") {
@@ -59,7 +76,10 @@ struct MacProjectsView: View {
         .listStyle(.insetGrouped)
         .searchable(text: $query, prompt: "Поиск проекта")
         .navigationTitle(agent?.name ?? "Мак")
-        .task(id: agent?.connected) { loadRemote() }
+        .task(id: agent?.connected) {
+            loadRemote()
+            if agent?.connected == true { sessionManager.loadProfiles(agentID: agentID) }
+        }
         .refreshable { loadRemote() }
     }
 
@@ -135,5 +155,26 @@ private struct RemoteSessionRow: View {
         if let command = info.command { parts.append(command) }
         if let started = info.started { parts.append("с " + started.formatted(date: .omitted, time: .shortened)) }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// A saved project: folder name, its profile badge and mode icon.
+struct SavedProjectRow: View {
+    let path: String
+    let config: ProjectConfig?
+    let profiles: MacProfiles?
+    let sessions: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            RecentProjectRow(path: path, sessions: sessions)
+            if let mode = config?.mode {
+                Image(systemName: mode.symbol).foregroundStyle(Palette.meta)
+            }
+            if let profile = config?.profile {
+                // Only flag a missing profile once the Mac has answered.
+                ProfileBadge(profile: profile, missing: profiles.map { $0.profile(named: profile) == nil } ?? false)
+            }
+        }
     }
 }

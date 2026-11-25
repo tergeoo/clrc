@@ -24,5 +24,12 @@ enum PreviewEnvironment {
     static let macs = [Agent(id: "mbp", name: "mbp-work", connected: true, version: "2.1.0"),
                        Agent(id: "mini", name: "mac-mini", connected: true)]
     static let recents = ["mbp": ["/Users/g/startups/api", "/Users/g/startups/web", "/Users/g/startups/clrc"]]
+
+    static let profiles = MacProfiles(defaultProfile: "personal", profiles: [
+        MacProfile(name: "dats", description: "DATS (gitlab.dats.tech): Go backends", launchArgs: [], harness: true),
+        MacProfile(name: "personal", description: "Личный", launchArgs: ["--dangerously-skip-permissions"], harness: true),
+        MacProfile(name: "rtd", description: "RTD Lab (gitlab.rtdlab.cloud): Go backend monorepo",
+                   launchArgs: ["--dangerously-skip-permissions"], harness: true),
+    ])
 }
 #endif

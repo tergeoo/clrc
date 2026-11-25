@@ -23,7 +23,6 @@ struct NewTaskSheet: View {
 
     @AppStorage(ChatDisplayMode.storageKey) private var displayMode: ChatDisplayMode = .chat
     @AppStorage(SessionLaunchMode.terminalStorageKey) private var claudeInTerminal = false
-    @AppStorage(ChatDisplayMode.profileStorageKey) private var storedProfile = ""
 
     @State private var agentID: String?
     @State private var projectPath: String?
@@ -31,7 +30,8 @@ struct NewTaskSheet: View {
     @State private var mode: SessionLaunchMode = .chat
     @State private var customName = ""
     @State private var model = ""
-    @State private var profile = ""
+    /// Claude profile for this task; nil = the project's, else the default.
+    @State private var profile: String?
     @State private var showAdvanced = false
     /// «Без подтверждений (опасно)»: never remembered, off on every open.
     @State private var skipPermissions = false
@@ -87,13 +87,18 @@ struct NewTaskSheet: View {
         }
         // Only a Mac the user picks resets the project; the initial
         // selection in setUp keeps `preferredProject`.
-        .onChange(of: agentID) { old, _ in
-            if old != nil { projectPath = recents.first ?? Self.homePath }
+        .onChange(of: agentID) { old, new in
+            if old != nil {
+                projectPath = recents.first ?? Self.homePath
+                applyProjectConfig()
+            }
+            if let new { sessionManager.loadProfiles(agentID: new) }
         }
         .sheet(isPresented: $showBrowser) {
             if let agent {
                 FolderPickerSheet(agentID: agent.id) { path in
                     projectPath = path
+                    applyProjectConfig()
                 }
                 .environmentObject(relay)
             }
@@ -207,7 +212,7 @@ struct NewTaskSheet: View {
                 Divider().padding(.leading, 14)
                 AdvancedField(title: "Модель", text: $model, placeholder: "по умолчанию")
                 Divider().padding(.leading, 14)
-                AdvancedField(title: "Профиль Claude", text: $profile, placeholder: "по умолчанию")
+                profileRow
             }
             .background(Palette.card, in: RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous))
             .padding(.top, 8)
@@ -215,6 +220,19 @@ struct NewTaskSheet: View {
         }
         .font(.system(size: 15))
         .tint(Palette.sec)
+    }
+
+    @ViewBuilder
+    private var profileRow: some View {
+        if let agentID {
+            let profiles = sessionManager.profiles(for: agentID)
+            ProfilePicker(title: "Профиль Claude", selection: $profile, profiles: profiles,
+                          unavailable: sessionManager.profilesUnavailable.contains(agentID),
+                          defaultLabel: LaunchProfileResolver.defaultLabel(
+                            settingsProfile: sessionManager.settingsProfile, macDefault: profiles?.defaultProfile))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 48)
+        }
     }
 
     /// Terminal: the red toggle. Chat/Brief: the agent already runs them
@@ -286,27 +304,37 @@ struct NewTaskSheet: View {
 
     private func setUp() {
         mode = SessionLaunchMode(displayMode: displayMode, inTerminal: claudeInTerminal)
-        profile = storedProfile
         let lastProjectAgent = onlineAgents.first { !sessionManager.recentProjects(for: $0).isEmpty }?.id
         agentID = NewTaskPlanner.defaultAgentID(onlineAgentIDs: onlineAgents.map(\.id),
                                                 preferred: preferredAgentID,
                                                 lastProjectAgentID: lastProjectAgent)
         projectPath = preferredProject ?? recents.first ?? Self.homePath
+        applyProjectConfig()
+        if let agentID { sessionManager.loadProfiles(agentID: agentID) }
         if let initialPrompt { prompt = initialPrompt }
         #if DEBUG
         if previewDanger { mode = .terminal; showAdvanced = true; skipPermissions = true; detent = .large }
         #endif
     }
 
+    /// A saved project's profile and mode prefill the sheet; other folders
+    /// reset to the defaults. Still editable for this one task.
+    private func applyProjectConfig() {
+        let config = agentID.flatMap { sessionManager.projectConfig(path: projectPath, agentID: $0) }
+        profile = config?.profile
+        mode = config?.mode ?? SessionLaunchMode(displayMode: displayMode, inTerminal: claudeInTerminal)
+    }
+
     private func tapProject(_ path: String) {
         projectPath = path
+        applyProjectConfig()
         if NewTaskPlanner.launchesOnProjectTap(prompt: prompt) { launch() }
     }
 
     private func launch() {
         guard let agent else { return }
         let request = NewTaskPlanner.request(agentID: agent.id, cwd: projectPath, mode: mode, prompt: prompt,
-                                             customName: customName, model: model, profile: profile,
+                                             customName: customName, model: model, profile: profile ?? "",
                                              skipPermissions: skipPermissions)
         finish(sessionManager.launch(request))
     }
