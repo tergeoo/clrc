@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call: # release.yml runs the same checks before building a tag
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Go: relay and agent are separate modules ────────────────────────────────
+  go:
+    name: Go (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [relay, agent]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on: $unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race ./...
+
+  # ── Swift: iOS logic core and the Mac installer core ────────────────────────
+  swift:
+    name: Swift (${{ matrix.package }})
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - Claude Orchestrator.iOS/ClrcCore
+          - mac-installer/ClrcInstallerCore
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: swift test
+        working-directory: ${{ matrix.package }}
+        run: swift test
+
+  # ── Shell: release helper used by the release workflow ──────────────────────
+  scripts:
+    name: Release scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: update-homebrew.sh updates formula and cask
+        run: |
+          sh scripts/update-homebrew.sh v9.9.9 \
+            "$(printf 'a%.0s' $(seq 64))" "$(printf 'b%.0s' $(seq 64))"
+          grep -q 'version "9.9.9"' Formula/clrc.rb
+          grep -q 'version "9.9.9"' Casks/clrc.rb
+          git diff --stat
