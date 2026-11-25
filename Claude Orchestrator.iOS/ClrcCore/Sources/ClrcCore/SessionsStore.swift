@@ -7,6 +7,8 @@ public final class SessionsStore {
 
     public private(set) var sessions: [PersistedSession] = []
     private var recentsByAgent: [String: [String]] = [:]
+    /// Saved projects: agent id → project path → launch config.
+    private var configsByAgent: [String: [String: ProjectConfig]] = [:]
 
     private let fileURL: URL
     private static let maxRecents = 8
@@ -15,6 +17,8 @@ public final class SessionsStore {
     private struct StoreFile: Codable {
         var sessions: [PersistedSession] = []
         var recentsByAgent: [String: [String]] = [:]
+        /// Optional so files written before saved projects still decode.
+        var configsByAgent: [String: [String: ProjectConfig]]?
     }
 
     public init(directory: URL) {
@@ -72,6 +76,37 @@ public final class SessionsStore {
         recentsByAgent[agentID] ?? []
     }
 
+    // MARK: - Saved projects
+
+    public func projectConfig(path: String, agentID: String) -> ProjectConfig? {
+        configsByAgent[agentID]?[path]
+    }
+
+    /// Saves (or, with nil, un-saves) a project's launch config.
+    public func setProjectConfig(_ config: ProjectConfig?, path: String, agentID: String) {
+        var configs = configsByAgent[agentID] ?? [:]
+        configs[path] = config
+        configsByAgent[agentID] = configs.isEmpty ? nil : configs
+        save()
+    }
+
+    /// Saved project paths of one agent, sorted by folder name.
+    public func savedProjects(forAgent agentID: String) -> [String] {
+        (configsByAgent[agentID] ?? [:]).keys.sorted {
+            let a = ($0 as NSString).lastPathComponent, b = ($1 as NSString).lastPathComponent
+            return a == b ? $0 < $1 : a.localizedStandardCompare(b) == .orderedAscending
+        }
+    }
+
+    /// The config saved for the same path on another Mac, to prefill a new
+    /// project; its profile is kept only if this Mac has it (`available`).
+    public func suggestedConfig(path: String, forAgent agentID: String, available: [String]) -> ProjectConfig? {
+        let other = configsByAgent.first { $0.key != agentID && $0.value[path] != nil }?.value[path]
+        guard var config = other else { return nil }
+        if let profile = config.profile, !available.contains(profile) { config.profile = nil }
+        return config
+    }
+
     // MARK: - Persistence
 
     private func load() {
@@ -84,6 +119,7 @@ public final class SessionsStore {
         }
         sessions = file.sessions
         recentsByAgent = file.recentsByAgent
+        configsByAgent = file.configsByAgent ?? [:]
     }
 
     private func save() {
@@ -92,7 +128,7 @@ public final class SessionsStore {
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let data = try encoder.encode(StoreFile(sessions: sessions, recentsByAgent: recentsByAgent))
+            let data = try encoder.encode(StoreFile(sessions: sessions, recentsByAgent: recentsByAgent, configsByAgent: configsByAgent))
             try data.write(to: fileURL, options: .atomic)
         } catch {
             // Persistence failure must never break the live session UI.

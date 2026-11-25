@@ -51,6 +51,14 @@ public enum ShellCommand {
         return quoted(path)
     }
 
+    /// A command-line argument: as is when it has only shell-safe characters,
+    /// otherwise single-quoted.
+    public static func argument(_ text: String) -> String {
+        let safe = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./=:@%+-,")
+        if !text.isEmpty, text.unicodeScalars.allSatisfy(safe.contains) { return text }
+        return quoted(text)
+    }
+
     /// Single-quotes `text` for a POSIX shell.
     static func quoted(_ text: String) -> String {
         "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
