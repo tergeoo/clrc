@@ -1,6 +1,9 @@
 .PHONY: relay agent relay-init agent-init install uninstall app logs relay-logs status build-relay build-agent build release help
 
 INSTALL_DIR ?= /usr/local/bin
+# Embedded into binaries (clrc version, register payload); release builds pass the tag.
+BUILD_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X main.version=$(BUILD_VERSION)
 
 # ── Quick start ───────────────────────────────────────────────────────────────
 
@@ -117,11 +120,11 @@ status:
 
 ## Build relay binary → /tmp/claude-relay
 build-relay:
-	@cd relay && go build -o /tmp/claude-relay ./cmd/ && echo "✅ relay → /tmp/claude-relay"
+	@cd relay && go build -ldflags "$(LDFLAGS)" -o /tmp/claude-relay ./cmd/ && echo "✅ relay → /tmp/claude-relay"
 
 ## Build agent binary → /tmp/clrc
 build-agent:
-	@cd agent && go build -o /tmp/clrc ./cmd/ && echo "✅ agent → /tmp/clrc"
+	@cd agent && go build -ldflags "$(LDFLAGS)" -o /tmp/clrc ./cmd/ && echo "✅ agent → /tmp/clrc"
 
 ## Build both
 build: build-relay build-agent

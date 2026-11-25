@@ -1,6 +1,9 @@
 package relay
 
-import "regexp"
+import (
+	"errors"
+	"regexp"
+)
 
 // Security limits. These are deliberate — see CLAUDE.md. Do not remove.
 const (
@@ -13,7 +16,36 @@ const (
 	maxClients      = 20
 	maxAgentIDLen   = 64
 	maxAgentNameLen = 128
+	// maxAgentVersionLen caps the build version an agent reports
+	// (e.g. "2.1.0" or a `git describe` string for local builds).
+	maxAgentVersionLen = 64
 )
+
+// agentVersionPattern is the allowed shape of a reported agent version. The
+// value is shown on the iPhone and written to logs, so it stays printable.
+var agentVersionPattern = regexp.MustCompile(`^[0-9A-Za-z.+-]*$`)
+
+// registerReq is the payload of an agent's first message, "register".
+// Version is empty for agents older than 2.1.
+type registerReq struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name"`
+	Secret  string `json:"secret"`
+	Version string `json:"version,omitempty"`
+}
+
+// validate checks the identity fields; the secret is checked by the caller.
+func (r registerReq) validate() error {
+	switch {
+	case len(r.AgentID) > maxAgentIDLen || !validAgentID(r.AgentID):
+		return errors.New("invalid agent id")
+	case len(r.Name) > maxAgentNameLen:
+		return errors.New("agent name too long")
+	case len(r.Version) > maxAgentVersionLen || !agentVersionPattern.MatchString(r.Version):
+		return errors.New("invalid agent version")
+	}
+	return nil
+}
 
 // uuidV4 matches a lowercase RFC 4122 version-4 UUID, exactly the form produced
 // by the iOS client (`UUID().uuidString.lowercased()`) and the agent

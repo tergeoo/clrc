@@ -9,7 +9,11 @@ import (
 	relay "github.com/claude-orchestrator/relay"
 )
 
+// version is set at build time via -ldflags "-X main.version=vX.Y.Z".
+var version = "dev"
+
 func main() {
+	log.Printf("clrc relay %s", version)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

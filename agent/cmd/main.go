@@ -16,6 +16,9 @@ import (
 	"github.com/claude-orchestrator/agent"
 )
 
+// version is set at release build time via -ldflags "-X main.version=vX.Y.Z".
+var version = "dev"
+
 const (
 	logFile = "/tmp/clrc.log"
 )
@@ -342,6 +345,7 @@ func run() {
 		Secret:         os.Getenv("AGENT_SECRET"),
 		RelayURL:       os.Getenv("RELAY_URL"),
 		DefaultCommand: os.Getenv("DEFAULT_COMMAND"),
+		Version:        strings.TrimPrefix(version, "v"),
 	}
 	if *relay != "" {
 		cfg.RelayURL = *relay
@@ -424,6 +428,8 @@ func main() {
 		cmdAttach()
 	case "config":
 		cmdConfig()
+	case "version", "--version", "-v":
+		fmt.Println(strings.TrimPrefix(version, "v"))
 	case "_run", "": // internal daemon process or foreground run
 		run()
 	default:
@@ -442,6 +448,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  clrc config --name \"My Mac\"          set display name\n")
 		fmt.Fprintf(os.Stderr, "  clrc config --command claude         set default command\n")
 		fmt.Fprintf(os.Stderr, "  clrc config --edit                   open config in $EDITOR\n")
+		fmt.Fprintf(os.Stderr, "  clrc version                         print version\n")
 		os.Exit(1)
 	}
 }

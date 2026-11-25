@@ -16,6 +16,9 @@ type Config struct {
 	Secret         string
 	RelayURL       string
 	DefaultCommand string
+	// Version is the agent build version reported to the relay in register
+	// ("dev" for local builds). The iPhone uses it to flag outdated agents.
+	Version string
 
 	// ClaudeConfigDir is the resolved CLAUDE_CONFIG_DIR for spawned claude
 	// processes (from CLRC_CLAUDE_CONFIG_DIR or CLRC_PROFILE). Empty means
