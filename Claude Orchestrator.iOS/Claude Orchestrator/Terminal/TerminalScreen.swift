@@ -38,7 +38,11 @@ struct TerminalScreen: View {
                 ZStack {
                     RemoteTerminalView(session: session)
                         .id(session.id)
-                    if reconnecting { ReconnectOverlay() }
+                    if let failure = session.failure {
+                        SessionFailureBanner(message: failure)
+                    } else if reconnecting {
+                        ReconnectOverlay()
+                    }
                 }
                 if keyboardVisible {
                     SpecialKeysRow(ctrlOn: ctrlOn, send: sendKey, toggleCtrl: toggleCtrl, hide: hideKeyboard)
@@ -50,7 +54,7 @@ struct TerminalScreen: View {
                 }
             }
             // The header (back) stays usable: the Mac may never come back.
-            .disabled(reconnecting)
+            .disabled(reconnecting || session.failure != nil)
         }
         .task(id: reconnecting) { await checkStillRunning() }
         .background(Palette.code)
@@ -166,5 +170,27 @@ private struct ReconnectOverlay: View {
             .padding(.vertical, 16)
             .background(TerminalChrome.badge, in: RoundedRectangle(cornerRadius: 14))
         }
+    }
+}
+
+/// The Mac refused the session (e.g. the project's profile is missing):
+/// shown instead of the terminal so nothing looks like it is running.
+struct SessionFailureBanner: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 36))
+                .foregroundStyle(Palette.orange)
+            Text("Сессия не запущена").font(.system(size: 17, weight: .semibold))
+            Text(message)
+                .font(.system(size: 14))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Palette.sec)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.code)
     }
 }

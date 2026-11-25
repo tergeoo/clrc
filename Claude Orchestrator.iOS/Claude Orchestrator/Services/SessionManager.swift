@@ -543,6 +543,11 @@ final class SessionManager: ObservableObject {
 
     func profiles(for agentID: String) -> MacProfiles? { macProfiles[agentID] }
 
+    #if DEBUG
+    /// Design previews: profiles as if the Mac had answered.
+    func setPreviewProfiles(_ profiles: MacProfiles, agentID: String) { macProfiles[agentID] = profiles }
+    #endif
+
     /// Asks the Mac for its profiles; the cached list stays until a new one arrives.
     func loadProfiles(agentID: String) {
         relay.requestProfiles(agentID: agentID) { [weak self] profiles in

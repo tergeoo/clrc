@@ -62,6 +62,8 @@ struct ProjectView: View {
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
 
+            ProjectLaunchSection(agentID: agentID, path: path)
+
             if !chats.isEmpty || !terminals.isEmpty {
                 Section("Сессии в проекте") {
                     ForEach(chats) { chat in
