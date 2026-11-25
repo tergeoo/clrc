@@ -1,6 +1,6 @@
 # Project launch profiles — design
 
-Status: draft for approval · 2026-11-25 · builder-checked
+Status: approved 2026-11-25 · builder-checked
 
 ## Intent
 
@@ -210,6 +210,24 @@ old agent / old relay: the profile picker falls back to today's text field.
   overrides for this one task.
 - A profile that the Mac no longer reports is shown on the project as «rtd — нет на Маке»
   in orange; launching still goes strict and fails with the agent's message.
+
+## Several Macs
+
+The owner must be able to do the same on every Mac (owner requirement, 2026-11-25).
+
+- Everything is per Mac by construction: each agent reports **its own** profiles
+  (`profiles_list` goes to one `agent_id`), and project configs are keyed by
+  `agent_id` + path. A work Mac can have `rtd` and `dats`, a home Mac only `personal`.
+- Saving a project on a second Mac whose folder path matches a saved project on another
+  Mac prefills that project's config (profile only if the second Mac reports it). Still a
+  separate saved project; nothing is linked or synced. *(Designer's call: removes retyping
+  without hidden coupling.)*
+- A new Mac gets the agent via `~/harness/scripts/mac-setup.sh clrc`. That script today
+  builds from branch `feat/structured-output`, which no longer exists: it must default to
+  `main` and embed the version (`-ldflags "-X main.version=$(git describe --tags)"`) so the
+  iPhone's «Обнови clrc» check works on every Mac. This change is in the `harness` repo.
+- The agent finds harness via `$HARNESS_ROOT` or `~/harness`; launchd agents installed by
+  `mac-setup.sh` have `HOME` set, so the default works without extra config.
 
 ## Constraints
 
