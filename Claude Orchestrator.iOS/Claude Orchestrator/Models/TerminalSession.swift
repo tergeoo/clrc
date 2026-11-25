@@ -53,6 +53,14 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     private var toolsUsed = 0
     private var idleTimer: Task<Void, Never>?
 
+    // A full-screen TUI (claude) emits output dozens of times per second;
+    // running the regex-heavy parseOutput and its @Published mutations on
+    // every chunk saturates the main thread and lags rendering. Raw bytes are
+    // batched and parsed at most once per parseFlushInterval instead.
+    private var pendingParse = Data()
+    private var parseFlushTask: Task<Void, Never>?
+    private static let parseFlushInterval: Duration = .milliseconds(200)
+
     // NOTE: This regex-over-ANSI heuristic exists only because PTY mode has to
     // guess structure from TUI output. Chat sessions receive typed events
     // instead (see ChatEvent), so this applies to PTY sessions only and is a
@@ -89,7 +97,23 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
         for box in views {
             box.view?.feed(byteArray: bytes[...])
         }
-        parseOutput(data)
+        // Rendering is the only per-chunk work; activity parsing is batched.
+        pendingParse.append(data)
+        scheduleParseFlush()
+    }
+
+    /// Parses the batched output at most once per `parseFlushInterval`.
+    private func scheduleParseFlush() {
+        guard parseFlushTask == nil else { return }
+        parseFlushTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.parseFlushInterval)
+            guard let self else { return }
+            self.parseFlushTask = nil
+            let batch = self.pendingParse
+            self.pendingParse = Data()
+            guard !batch.isEmpty else { return }
+            self.parseOutput(batch)
+        }
     }
 
     /// Log a user-initiated input as an activity event.
