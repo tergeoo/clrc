@@ -1,17 +1,17 @@
 class Clrc < Formula
   desc "Claude Remote Control — use Claude CLI on your Mac from your iPhone"
   homepage "https://github.com/tergeoo/clrc"
-  version "2.0.0"
+  version "2.1.0"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/tergeoo/clrc/releases/download/v#{version}/clrc-darwin-arm64"
-      sha256 "5db621bdd566f5d6a4e819d8e82003f2df99e20464112a3a32b5dc5020db854c"
+      sha256 "75259f0f0267aa06834736118ea21c5f73b64b4fb36ce595ae7302ca18ca0770"
     end
     on_intel do
       url "https://github.com/tergeoo/clrc/releases/download/v#{version}/clrc-darwin-amd64"
-      sha256 "36c153b25bbe91863a46aef5bcd712f51d99ff4d5de405ebb0dc57e0d0f640b1"
+      sha256 "36f0b19364003956aa1fdcef9ffe1954b3077b9a609f6c4de94a261df55d5bf0"
     end
   end
 
