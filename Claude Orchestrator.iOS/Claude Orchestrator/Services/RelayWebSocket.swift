@@ -230,12 +230,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
         switch type {
         case "agent_list":
-            if let agentsList = payload["agents"] as? [[String: Any]] {
-                agents = agentsList.compactMap { dict in
-                    guard let id = dict["id"] as? String,
-                          let name = dict["name"] as? String else { return nil }
-                    return Agent(id: id, name: name, connected: dict["connected"] as? Bool ?? false)
-                }
+            agents = AgentSummary.list(fromAgentListPayload: payload).map {
+                Agent(id: $0.id, name: $0.name, connected: $0.connected, version: $0.version)
             }
 
         case "session_ready":

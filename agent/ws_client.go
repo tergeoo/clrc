@@ -36,6 +36,24 @@ type connectReq struct {
 	Style string `json:"style"`
 }
 
+// registerReq is the payload of the agent's first message, "register".
+// Version is empty for agents older than 2.1.
+type registerReq struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name"`
+	Secret  string `json:"secret"`
+	Version string `json:"version,omitempty"`
+}
+
+func newRegisterReq(cfg Config) registerReq {
+	return registerReq{AgentID: cfg.AgentID, Name: cfg.Name, Secret: cfg.Secret, Version: cfg.Version}
+}
+
+// sessionsListPayload is the payload of a "sessions_list" reply.
+func sessionsListPayload(requestID string, sessions []map[string]any) map[string]any {
+	return map[string]any{"request_id": requestID, "sessions": sessions}
+}
+
 // isPTY reports whether this connect asks for a terminal session. Anything
 // that is not explicitly "chat" is a PTY, so unknown kinds from a newer
 // client degrade to current behaviour rather than failing.
@@ -188,16 +206,15 @@ func (c *WSClient) connect(ctx context.Context) error {
 	c.connMu.Unlock()
 
 	// Register with relay
-	regPayload, _ := json.Marshal(map[string]string{
-		"agent_id": c.cfg.AgentID,
-		"name":     c.cfg.Name,
-		"secret":   c.cfg.Secret,
-	})
+	regPayload, err := json.Marshal(newRegisterReq(*c.cfg))
+	if err != nil {
+		return fmt.Errorf("encode register: %w", err)
+	}
 	regMsg, _ := json.Marshal(Message{Type: "register", Payload: regPayload})
 	if err := conn.Write(ctx, websocket.MessageText, regMsg); err != nil {
 		return err
 	}
-	log.Printf("Registered as agent: %s (%s)", c.cfg.Name, c.cfg.AgentID)
+	log.Printf("Registered as agent: %s (%s), version %s", c.cfg.Name, c.cfg.AgentID, c.cfg.Version)
 
 	// connCtx is cancelled when the parent ctx is done OR when a ping fails.
 	// This ensures the read loop exits promptly on sleep/wake or network drop.
@@ -630,10 +647,7 @@ func (c *WSClient) handleListSessions(ctx context.Context, payload json.RawMessa
 
 	sessions := buildSessionsList(live, ListSess())
 
-	respPayload, _ := json.Marshal(map[string]any{
-		"request_id": req.RequestID,
-		"sessions":   sessions,
-	})
+	respPayload, _ := json.Marshal(sessionsListPayload(req.RequestID, sessions))
 	resp, _ := json.Marshal(Message{Type: "sessions_list", Payload: respPayload})
 
 	c.connMu.Lock()

@@ -16,8 +16,10 @@ import (
 type AgentConn struct {
 	ID   string
 	Name string
-	conn *websocket.Conn
-	mu   sync.Mutex
+	// Version is the agent build version from register; empty before 2.1.
+	Version string
+	conn    *websocket.Conn
+	mu      sync.Mutex
 }
 
 func (a *AgentConn) Send(ctx context.Context, msgType websocket.MessageType, data []byte) error {
@@ -110,7 +112,7 @@ func (h *Hub) Run() {
 		select {
 		case agent := <-h.registerAgent:
 			h.addAgent(agent)
-			log.Printf("Agent registered: %s (%s)", agent.Name, agent.ID)
+			log.Printf("Agent registered: %s (%s), version %q", agent.Name, agent.ID, agent.Version)
 			h.broadcastAgentList()
 
 		case agent := <-h.unregisterAgent:
@@ -185,11 +187,7 @@ func (h *Hub) broadcastAgentList() {
 	h.mu.RLock()
 	agents := make([]map[string]any, 0, len(h.agents))
 	for _, a := range h.agents {
-		agents = append(agents, map[string]any{
-			"id":        a.ID,
-			"name":      a.Name,
-			"connected": true,
-		})
+		agents = append(agents, agentListEntry(a))
 	}
 	clients := make([]*ClientConn, 0, len(h.clients))
 	for c := range h.clients {
@@ -208,17 +206,23 @@ func (h *Hub) broadcastAgentList() {
 	}
 }
 
+// agentListEntry is one agent in an "agent_list" message. "version" is
+// omitted for agents that did not report one, so old clients see no change.
+func agentListEntry(a *AgentConn) map[string]any {
+	entry := map[string]any{"id": a.ID, "name": a.Name, "connected": true}
+	if a.Version != "" {
+		entry["version"] = a.Version
+	}
+	return entry
+}
+
 // GetAgentList returns current agent list as JSON payload.
 func (h *Hub) GetAgentList() []map[string]any {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	agents := make([]map[string]any, 0, len(h.agents))
 	for _, a := range h.agents {
-		agents = append(agents, map[string]any{
-			"id":        a.ID,
-			"name":      a.Name,
-			"connected": true,
-		})
+		agents = append(agents, agentListEntry(a))
 	}
 	return agents
 }
@@ -368,11 +372,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 		return
 	}
 
-	var reg struct {
-		AgentID string `json:"agent_id"`
-		Name    string `json:"name"`
-		Secret  string `json:"secret"`
-	}
+	var reg registerReq
 	if err := json.Unmarshal(msg.Payload, &reg); err != nil {
 		conn.Close(websocket.StatusPolicyViolation, "invalid register payload")
 		return
@@ -383,7 +383,7 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 		return
 	}
 
-	if len(reg.AgentID) > maxAgentIDLen || !validAgentID(reg.AgentID) || len(reg.Name) > maxAgentNameLen {
+	if err := reg.validate(); err != nil {
 		conn.Close(websocket.StatusPolicyViolation, "invalid agent identity")
 		return
 	}
@@ -394,9 +394,10 @@ func HandleAgentWS(w http.ResponseWriter, r *http.Request, hub *Hub, agentSecret
 	}
 
 	agent := &AgentConn{
-		ID:   reg.AgentID,
-		Name: reg.Name,
-		conn: conn,
+		ID:      reg.AgentID,
+		Name:    reg.Name,
+		Version: reg.Version,
+		conn:    conn,
 	}
 
 	hub.registerAgent <- agent

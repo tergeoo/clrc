@@ -83,7 +83,14 @@ struct SettingsScreen: View {
             ForEach(relay.agents) { agent in
                 HStack(spacing: 10) {
                     Image(systemName: "laptopcomputer").foregroundStyle(Palette.sec)
-                    Text(agent.name)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(agent.name)
+                        if agent.needsUpdate {
+                            Text("Обнови clrc на этом Маке").font(.system(size: 12)).foregroundStyle(Palette.orange)
+                        } else if let version = agent.version {
+                            Text("clrc \(version)").font(.system(size: 12)).foregroundStyle(Palette.meta)
+                        }
+                    }
                     Spacer()
                     StatusDot(color: agent.connected ? Palette.green : Palette.meta, size: 7)
                     Text(agent.connected ? "в сети" : "не в сети").font(.system(size: 13)).foregroundStyle(Palette.meta)
