@@ -86,7 +86,7 @@ Every text control message is a JSON envelope `{ "type": string, "payload": <raw
 There is no shared `proto` package (an older `proto/messages.go` was removed). The contract is pinned by golden messages in `protocol/fixtures/` (see `protocol/README.md`): `*_contract_test` files in `relay/`, `agent/` and `ClrcCore` encode or strictly decode them. When you add or change a message type, edit the fixture first, then update all three.
 
 **Two transport channels on the same socket:**
-- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `git_status`, `git_diff`, `push_register` (client → relay), `agent_list`, `session_ready`, `error`, `*_result`).
+- **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `profiles_list`, `fs_*`, `git_status`, `git_diff`, `push_register` (client → relay), `agent_list`, `session_ready`, `error`, `*_result`).
 - **Binary frames** = raw terminal bytes, wrapped in a custom framing: `[4-byte big-endian session_id length][session_id][payload]`. See `encodeBinaryFrame`/`decodeBinaryFrame`, duplicated in both `relay/hub.go` and `agent/ws_client.go`.
 - `connect` carries an optional `name` (session display name). The agent persists it
   (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
@@ -101,6 +101,23 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). T
 - Chat replies use a Claude Code output style (`clrc-chat` / `clrc-brief`, kept in the user's Claude config) and end with a ```` ```clrc-report ```` JSON block. `agent/turn_tracker.go` + `agent/turn_report.go` strip the `**header**` line and the block from the text and emit a `report` event (`v, status, title, summary, questions, next_steps, changed_files, header, context_ok, source`) right before `turn_end`, with a fallback report when the block is missing.
 - Agent env: `CLRC_PROFILE` (→ `CLAUDE_CONFIG_DIR=~/.claude-<profile>`), `CLRC_CLAUDE_CONFIG_DIR` (explicit dir, wins), `CLRC_OUTPUT_STYLE` (default `clrc-chat`, empty = none), `CLRC_EXPECTED_HEADER_PREFIX` (gates `context_ok`). Every spawned process gets `CLRC_SESSION=1`.
 - Chat `connect` takes optional `profile` and `style` overriding those defaults per session. Full contract: section 13 of `docs/superpowers/specs/2026-08-15-chat-mode-design.md`.
+
+### Launch profiles and saved projects
+
+- A session's profile resolves to a `LaunchProfile` (`agent/launch_profile.go`). A `~/harness`
+  profile (`$HARNESS_ROOT` or `~/harness`, synced = `~/.claude-<name>/.harness-state.json`)
+  is launched like the harness `c <name>`: `CLAUDE_CONFIG_DIR`, the vars from
+  `~/.config/harness/<name>.env` (never logged), `HARNESS_PROFILE`. The `CLRC_PROFILE`
+  default gets the same treatment. Terminal `launch_args` are added by the iPhone.
+- `connect.profile_strict`: a profile `c` would refuse is an error — nothing is spawned, the
+  agent sends `error{session_id, message}` (PTY) or a chat error event; the relay routes
+  per-session errors to the owning client. Without the flag: fallback to the default.
+- `profiles_list` → `profiles_list_result{default_profile, profiles[name, description,
+  launch_args, harness]}` lists a Mac's profiles (relay forwards it like `list_sessions`).
+- iPhone: saved projects = `SessionsStore.configsByAgent` (Mac + folder → `ProjectConfig`
+  profile/mode); `LaunchProfileResolver` picks task override → project (strict) → Settings
+  → Mac default. Sessions persist their profile and reuse it on reattach/restore/restart.
+  Design: `docs/superpowers/specs/2026-11-25-project-launch-profiles-design.md`.
 
 ### Relay routing (`relay/hub.go`)
 
