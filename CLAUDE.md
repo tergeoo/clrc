@@ -48,7 +48,7 @@ make build-relay      # relay only
 make build-agent      # agent (clrc) only
 make install          # build agent + copy to /usr/local/bin/clrc
 
-# tests / vet (run inside a module dir; relay currently has no _test.go files)
+# tests / vet (run inside a module dir; CI runs the same, see .github/workflows/ci.yml)
 cd relay && go test -race ./... && go vet ./...
 cd agent && go test -race ./... && go vet ./...
 
@@ -83,7 +83,7 @@ Every text control message is a JSON envelope `{ "type": string, "payload": <raw
 - `agent/ws_client.go`
 - the iOS `RelayWebSocket` service
 
-There is no shared `proto` package (an older `proto/messages.go` was removed). When you add or change a message type, update all three.
+There is no shared `proto` package (an older `proto/messages.go` was removed). The contract is pinned by golden messages in `protocol/fixtures/` (see `protocol/README.md`): `*_contract_test` files in `relay/`, `agent/` and `ClrcCore` encode or strictly decode them. When you add or change a message type, edit the fixture first, then update all three.
 
 **Two transport channels on the same socket:**
 - **Text frames** = control messages (`register`, `auth`, `connect`, `resize`, `disconnect`, `detach`, `list_sessions`, `fs_*`, `git_status`, `git_diff`, `push_register` (client → relay), `agent_list`, `session_ready`, `error`, `*_result`).
@@ -91,6 +91,10 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 - `connect` carries an optional `name` (session display name). The agent persists it
   (`agent/session_store.go`) and returns `name`, `command`, `started` (RFC3339) per entry
   in `sessions_list`. All fields are optional — old clients/agents interoperate.
+- `register` carries an optional `version` (agent build, from `-X main.version`; `clrc version`
+  prints it); the relay validates it and forwards it per agent in `agent_list`. The iPhone
+  flags Macs below `AgentVersion.minimumSupported` (ClrcCore) or with no version (pre-2.1) —
+  raise that constant when the app starts relying on a newer agent feature.
 
 ### Structured output (chat mode)
 
@@ -125,8 +129,8 @@ There is no shared `proto` package (an older `proto/messages.go` was removed). W
 
 - **Security limits live in the relay and agent and are deliberate** — don't remove them: 4 MB max WS message, agent/client connection caps, UUID-v4 session-id validation, agent-id/name length caps, login rate limiting. Filesystem ops (`agent/fs_ops.go`) resolve `~`/relative paths and **reject anything outside the user's home dir**; file reads are capped at 100 KB; delete never follows a symlink and refuses the home dir itself. Git ops (`agent/git_ops.go`) use the same confinement, validate file arguments (relative, inside the project, never option-like), run git with a 10 s timeout and no pager/prompts/external drivers, and cap diffs at 512 KB.
 - WebSocket library: `nhooyr.io/websocket` on both Go sides. All network calls use `context.Context` with timeouts.
-- The relay deploys via Docker (`relay/docker/Dockerfile`); release binaries are built by `.github/workflows/release.yml` on a `vX.Y.Z` tag (`make release VERSION=v1.2.3`). Homebrew formula/cask live in `Formula/` and `Casks/`.
+- The relay deploys via Docker (`relay/docker/Dockerfile`); release binaries are built by `.github/workflows/release.yml` on a `vX.Y.Z` tag (`make release VERSION=v1.2.3`) after the CI checks pass; it then commits the new Formula/Cask hashes to `main` via `scripts/update-homebrew.sh`. Homebrew formula/cask live in `Formula/` and `Casks/`.
 
 ## Project rules
 
-This repo ships rule files under `.claude/rules/` (common + Go specifics). Key points: gofmt/goimports mandatory, wrap errors with `%w` and context, table-driven tests run with `-race`, small interfaces, secrets only from env. The `agent/` module and the iOS `ClrcCore` package now have automated tests (`go test -race ./...` and `swift test`, respectively); `relay/` still has none — adding relay tests (and keeping the three `Message` definitions in sync via tests) is the highest-value remaining testing gap.
+This repo ships rule files under `.claude/rules/` (common + Go specifics). Key points: gofmt/goimports mandatory, wrap errors with `%w` and context, table-driven tests run with `-race`, small interfaces, secrets only from env. `relay/`, `agent/`, `ClrcCore` and `ClrcInstallerCore` all have automated tests, run by CI on every push to `main` and every PR (`.github/workflows/ci.yml`).
