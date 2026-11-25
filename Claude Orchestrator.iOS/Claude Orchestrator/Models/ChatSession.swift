@@ -21,6 +21,12 @@ final class ChatSession: ObservableObject, Identifiable, Equatable {
     @Published var isWorking = false
     @Published var lastError: String?
 
+    /// The Claude profile this chat was launched with and whether it was
+    /// strict; reattach and restore repeat them (a resume under another
+    /// config dir would lose the transcript or switch accounts).
+    var profile: String?
+    var profileStrict = false
+
     /// True while a gap-triggered `requestChatHistory` is in flight for this
     /// session. Guards against firing a second replay request for every
     /// gapped event in a burst; cleared on both the real reply and the

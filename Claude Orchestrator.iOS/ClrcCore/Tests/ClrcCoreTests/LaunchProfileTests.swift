@@ -40,6 +40,8 @@ private func tempDir() throws -> URL {
 
 @Test(arguments: [
     ("x", ProjectConfig(profile: "rtd"), "p", ResolvedProfile(name: "x", strict: false)),
+    // The New Task sheet prefills the project's profile: still the project's.
+    ("rtd", ProjectConfig(profile: "rtd"), "p", ResolvedProfile(name: "rtd", strict: true)),
     (nil, ProjectConfig(profile: "rtd"), "p", ResolvedProfile(name: "rtd", strict: true)),
     (nil, ProjectConfig(profile: nil, mode: .terminal), "p", ResolvedProfile(name: "p", strict: false)),
     (nil, nil, nil, ResolvedProfile(name: nil, strict: false)),

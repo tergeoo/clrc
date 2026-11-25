@@ -53,6 +53,11 @@ final class SessionManager: ObservableObject {
             }
         }
 
+        relay.onSessionError = { [weak self] sessionID, message in
+            self?.sessions.first { $0.id == sessionID }?.failure = message
+            self?.chatSessions.first { $0.id == sessionID }?.lastError = message
+        }
+
         // After every reconnect, re-register all live sessions with the relay.
         relay.onConnect = { [weak self] in
             self?.handleReconnect()
@@ -106,14 +111,18 @@ final class SessionManager: ObservableObject {
         let plan = ReconnectPlanner.plan(inventory: inventory, agentID: agentID)
 
         for action in plan.ptyReconnects {
+            let session = sessions.first { $0.id == action.sessionID }
             relay.sendConnect(agentID: action.agentID, sessionID: action.sessionID,
-                              cols: action.cols, rows: action.rows, name: action.name)
+                              cols: action.cols, rows: action.rows, name: action.name,
+                              profile: session?.profile, profileStrict: session?.profileStrict ?? false)
         }
         for action in plan.chatReattaches {
             let options = chatConnectOptions()
+            let chat = chatSessions.first { $0.id == action.sessionID }
             relay.sendChatConnect(agentID: action.agentID, sessionID: action.sessionID,
                                   cwd: action.cwd, name: action.name,
-                                  style: options.style, profile: options.profile)
+                                  style: options.style, profile: chat?.profile ?? options.profile,
+                                  profileStrict: chat?.profileStrict ?? false)
             if let session = chatSessions.first(where: { $0.id == action.sessionID }) {
                 startChatReplay(for: session)
             }
@@ -235,10 +244,15 @@ final class SessionManager: ObservableObject {
 
     /// `restartCommand` is what «Перезапустить» will run later; by default
     /// the start command itself.
-    func createSession(for agent: Agent, initialCommand: String? = nil, restartCommand: String? = nil) {
+    /// `profile` defaults to the Settings profile (non-strict).
+    func createSession(for agent: Agent, initialCommand: String? = nil, restartCommand: String? = nil,
+                       profile: ResolvedProfile? = nil) {
         sessionCounter += 1
         let name = SessionNaming.autoName(for: initialCommand, index: sessionCounter)
         let session = TerminalSession(agent: agent, customName: name, initialCommand: initialCommand)
+        let resolved = profile ?? defaultProfile()
+        session.profile = resolved.name
+        session.profileStrict = resolved.strict
         sessions.append(session)
 
         let projectPath = SessionNaming.projectPath(from: initialCommand)
@@ -248,12 +262,15 @@ final class SessionManager: ObservableObject {
             agentName: agent.name,
             customName: name,
             projectPath: projectPath,
-            command: restartCommand ?? initialCommand
+            command: restartCommand ?? initialCommand,
+            profile: resolved.name,
+            profileStrict: resolved.strict
         ))
         if let projectPath {
             store.addRecentProject(projectPath, agentID: agent.id)
         }
-        relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24, name: name)
+        relay.sendConnect(agentID: agent.id, sessionID: session.id, cols: 80, rows: 24, name: name,
+                          profile: resolved.name, profileStrict: resolved.strict)
     }
 
     /// Starts a session from the New Task sheet and remembers its mode for
@@ -266,19 +283,23 @@ final class SessionManager: ObservableObject {
         guard let agent = agentFor(id: request.agentID) else { return nil }
         remember(request.mode)
 
+        let resolved = resolvedProfile(taskOverride: request.profile, cwd: request.cwd, agentID: agent.id)
+
         guard let display = request.mode.displayMode else {
             createSession(for: agent,
                           initialCommand: SessionLaunchMode.terminalCommand(
-                              cwd: request.cwd, prompt: request.prompt, skipPermissions: request.skipPermissions),
+                              cwd: request.cwd, prompt: request.prompt, skipPermissions: request.skipPermissions,
+                              launchArgs: launchArgs(for: resolved, agentID: agent.id)),
                           // Restart never replays the task or skips permissions again.
-                          restartCommand: NewTaskPlanner.restartCommand(for: request))
+                          restartCommand: NewTaskPlanner.restartCommand(for: request),
+                          profile: resolved)
             guard let created = sessions.last else { return nil }
             rename(created, to: request.name)
             return .terminal(id: created.id)
         }
 
         let options = ChatConnectOptions(style: display.outputStyle, model: request.model,
-                                         profile: request.profile ?? chatConnectOptions().profile)
+                                         profile: resolved.name, profileStrict: resolved.strict)
         let session = createChatSession(for: agent, cwd: request.cwd ?? "~", name: request.name, options: options)
         if let prompt = request.prompt {
             relay.sendChatMessage(sessionID: session.id, text: prompt)
@@ -307,15 +328,18 @@ final class SessionManager: ObservableObject {
     func createChatSession(for agent: Agent, cwd: String, name: String,
                            options: ChatConnectOptions? = nil) -> ChatSession {
         let session = ChatSession(agent: agent, cwd: cwd, customName: name)
+        let options = options ?? chatConnectOptions()
+        session.profile = options.profile
+        session.profileStrict = options.profileStrict
         store.upsert(PersistedSession(
             id: session.id, agentID: agent.id, agentName: agent.name,
             customName: name, projectPath: cwd == "~" ? nil : cwd,
-            kind: .chat, cwd: cwd
+            kind: .chat, cwd: cwd, profile: options.profile, profileStrict: options.profileStrict
         ))
         if cwd != "~" {
             store.addRecentProject(cwd, agentID: agent.id)
         }
-        attachChat(session, options: options ?? chatConnectOptions())
+        attachChat(session, options: options)
         return session
     }
 
@@ -325,7 +349,12 @@ final class SessionManager: ObservableObject {
     private func restoreChat(_ entry: PersistedSession, agent: Agent) {
         let session = ChatSession(agentID: agent.id, agentName: agent.name, sessionID: entry.id,
                                   cwd: entry.cwd ?? "~", customName: entry.customName)
-        attachChat(session, options: chatConnectOptions())
+        // Entries saved before profiles were recorded keep using Settings.
+        session.profile = entry.profile ?? chatConnectOptions().profile
+        session.profileStrict = entry.profileStrict
+        let base = chatConnectOptions()
+        attachChat(session, options: ChatConnectOptions(style: base.style, model: nil,
+                                                        profile: session.profile, profileStrict: entry.profileStrict))
         startChatReplay(for: session)
     }
 
@@ -352,7 +381,7 @@ final class SessionManager: ObservableObject {
 
         relay.sendChatConnect(agentID: session.agent.id, sessionID: session.id,
                               cwd: session.cwd, name: session.customName, model: options.model,
-                              style: options.style, profile: options.profile)
+                              style: options.style, profile: options.profile, profileStrict: options.profileStrict)
     }
 
     /// The output style for the selected display mode and the optional
@@ -390,6 +419,8 @@ final class SessionManager: ObservableObject {
         )
         let existing = store.sessions.first { $0.id == sessionID }
         session.storedProjectPath = existing?.projectPath
+        session.profile = existing?.profile
+        session.profileStrict = existing?.profileStrict ?? false
         sessions.append(session)
         tombstones.removeAll { $0.id == sessionID }
 
@@ -400,9 +431,13 @@ final class SessionManager: ObservableObject {
             agentName: agentName,
             customName: name,
             projectPath: existing?.projectPath,
-            createdAt: existing?.createdAt ?? Date()
+            createdAt: existing?.createdAt ?? Date(),
+            command: existing?.command,
+            profile: existing?.profile,
+            profileStrict: existing?.profileStrict ?? false
         ))
-        relay.sendConnect(agentID: agentID, sessionID: sessionID, cols: 80, rows: 24, name: name)
+        relay.sendConnect(agentID: agentID, sessionID: sessionID, cols: 80, rows: 24, name: name,
+                          profile: session.profile, profileStrict: session.profileStrict)
     }
 
     // MARK: - Rename / close
@@ -418,7 +453,9 @@ final class SessionManager: ObservableObject {
             sessionID: session.id,
             cols: session.lastCols,
             rows: session.lastRows,
-            name: trimmed
+            name: trimmed,
+            profile: session.profile,
+            profileStrict: session.profileStrict
         )
     }
 
@@ -435,7 +472,8 @@ final class SessionManager: ObservableObject {
     @discardableResult
     func openTerminal(in cwd: String, agentID: String) -> SessionRoute? {
         guard let agent = agentFor(id: agentID) else { return nil }
-        createSession(for: agent, initialCommand: ShellCommand.cd(cwd))
+        createSession(for: agent, initialCommand: ShellCommand.cd(cwd),
+                      profile: resolvedProfile(taskOverride: nil, cwd: cwd, agentID: agentID))
         return sessions.last.map { .terminal(id: $0.id) }
     }
 
@@ -455,7 +493,8 @@ final class SessionManager: ObservableObject {
         sessions.removeAll { $0.id == session.id }
         let entry = store.sessions.first { $0.id == session.id } ?? PersistedSession(
             id: session.id, agentID: session.agent.id, agentName: session.agent.name,
-            customName: session.customName, projectPath: session.projectPath, command: session.initialCommand)
+            customName: session.customName, projectPath: session.projectPath, command: session.initialCommand,
+            profile: session.profile, profileStrict: session.profileStrict)
         if !tombstones.contains(where: { $0.id == entry.id }) { tombstones.append(entry) }
     }
 
@@ -479,7 +518,9 @@ final class SessionManager: ObservableObject {
         removeTombstone(id: tombstone.id)
         // Repeat what the session ran: a «Терминал здесь» shell stays a
         // shell; older entries without a command restart Claude as before.
-        createSession(for: agent, initialCommand: tombstone.restartCommand)
+        // Restart under the profile the session had, not today's Settings.
+        let profile = tombstone.profile.map { ResolvedProfile(name: $0, strict: tombstone.profileStrict) }
+        createSession(for: agent, initialCommand: tombstone.restartCommand, profile: profile)
     }
 
     /// Restarts an ended session by its id, if it is still listed.
@@ -491,6 +532,70 @@ final class SessionManager: ObservableObject {
     func removeTombstone(id: String) {
         tombstones.removeAll { $0.id == id }
         store.remove(id: id)
+    }
+
+    // MARK: - Launch profiles
+
+    /// Profiles reported by each Mac (absent until loaded or if unsupported).
+    @Published private(set) var macProfiles: [String: MacProfiles] = [:]
+    /// Macs that did not answer `profiles_list` (old agent or relay).
+    @Published private(set) var profilesUnavailable: Set<String> = []
+
+    func profiles(for agentID: String) -> MacProfiles? { macProfiles[agentID] }
+
+    /// Asks the Mac for its profiles; the cached list stays until a new one arrives.
+    func loadProfiles(agentID: String) {
+        relay.requestProfiles(agentID: agentID) { [weak self] profiles in
+            guard let self else { return }
+            if let profiles {
+                self.macProfiles[agentID] = profiles
+                self.profilesUnavailable.remove(agentID)
+            } else if self.macProfiles[agentID] == nil {
+                self.profilesUnavailable.insert(agentID)
+            }
+        }
+    }
+
+    /// The Settings profile, validated.
+    var settingsProfile: String? {
+        normalizedProfile(UserDefaults.standard.string(forKey: ChatDisplayMode.profileStorageKey) ?? "")
+    }
+
+    private func defaultProfile() -> ResolvedProfile {
+        LaunchProfileResolver.resolve(taskOverride: nil, project: nil, settingsProfile: settingsProfile)
+    }
+
+    /// The profile for a launch in `cwd` (see LaunchProfileResolver).
+    func resolvedProfile(taskOverride: String?, cwd: String?, agentID: String) -> ResolvedProfile {
+        LaunchProfileResolver.resolve(taskOverride: taskOverride, project: projectConfig(path: cwd, agentID: agentID),
+                                      settingsProfile: settingsProfile)
+    }
+
+    /// The `launch_args` a terminal adds for that profile (or the Mac default).
+    private func launchArgs(for resolved: ResolvedProfile, agentID: String) -> [String] {
+        guard let profiles = macProfiles[agentID] else { return [] }
+        return profiles.profile(named: resolved.name ?? profiles.defaultProfile)?.launchArgs ?? []
+    }
+
+    // MARK: - Saved projects
+
+    func projectConfig(path: String?, agentID: String) -> ProjectConfig? {
+        guard let path, path != "~" else { return nil }
+        return store.projectConfig(path: path, agentID: agentID)
+    }
+
+    func setProjectConfig(_ config: ProjectConfig?, path: String, agentID: String) {
+        objectWillChange.send()
+        store.setProjectConfig(config, path: path, agentID: agentID)
+    }
+
+    func savedProjects(for agentID: String) -> [String] { store.savedProjects(forAgent: agentID) }
+
+    /// Prefill for a project not saved on this Mac yet: the same folder's
+    /// config from another Mac, with a profile only if this Mac has it.
+    func suggestedConfig(path: String, agentID: String) -> ProjectConfig? {
+        store.suggestedConfig(path: path, forAgent: agentID,
+                              available: macProfiles[agentID]?.profiles.map(\.name) ?? [])
     }
 
     // MARK: - Recents
@@ -510,4 +615,5 @@ struct ChatConnectOptions {
     let style: String
     let model: String?
     let profile: String?
+    var profileStrict = false
 }

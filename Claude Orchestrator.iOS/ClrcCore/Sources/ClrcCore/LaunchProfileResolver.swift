@@ -19,7 +19,11 @@ public enum LaunchProfileResolver {
     /// the one the owner saved as "this project runs as that account".
     public static func resolve(taskOverride: String?, project: ProjectConfig?,
                                settingsProfile: String?) -> ResolvedProfile {
-        if let taskOverride { return ResolvedProfile(name: taskOverride, strict: false) }
+        // An override equal to the project's profile is the project's (the
+        // New Task sheet shows it prefilled), so it stays strict.
+        if let taskOverride, taskOverride != project?.profile {
+            return ResolvedProfile(name: taskOverride, strict: false)
+        }
         if let profile = project?.profile { return ResolvedProfile(name: profile, strict: true) }
         return ResolvedProfile(name: settingsProfile, strict: false)
     }

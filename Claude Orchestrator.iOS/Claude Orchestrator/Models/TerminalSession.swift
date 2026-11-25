@@ -13,6 +13,8 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
     @Published var title: String
     @Published var customName: String
     @Published var isReady: Bool = false
+    /// Set when the Mac refused the session (e.g. its profile is missing).
+    @Published var failure: String?
     @Published var activityLog: [ActivityEvent] = []
     @Published var claudeState: ClaudeState = .idle
     /// Pinch-zoomed font size, kept for the life of the session.
@@ -32,6 +34,11 @@ final class TerminalSession: ObservableObject, Identifiable, Equatable {
 
     /// Set for sessions restored or attached by id, whose command is unknown.
     var storedProjectPath: String?
+
+    /// The Claude profile this session was launched with (nil = Mac default)
+    /// and whether it was strict; every later `connect` repeats them.
+    var profile: String?
+    var profileStrict = false
 
     func attach(_ view: SwiftTerm.TerminalView) {
         views.removeAll { $0.view == nil || $0.view === view }
