@@ -10,6 +10,7 @@ encode or decode them.
 | `register.json` | agent | relay | `agent/protocol_contract_test.go`, `relay/protocol_contract_test.go` |
 | `agent_list.json` | relay | iOS | `relay/protocol_contract_test.go`, `ClrcCoreTests/ProtocolContractTests.swift` |
 | `connect.json` | iOS | agent | `agent/protocol_contract_test.go` |
+| `profiles_list_result.json` | agent | iOS | `agent/protocol_contract_test.go`, `ClrcCoreTests/LaunchProfileTests.swift` |
 | `sessions_list.json` | agent | iOS | `agent/protocol_contract_test.go`, `ClrcCoreTests/ProtocolContractTests.swift` |
 
 Changing a message: edit the fixture first, watch the tests on every side

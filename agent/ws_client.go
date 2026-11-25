@@ -277,6 +277,8 @@ func (c *WSClient) handleText(ctx context.Context, data []byte) {
 		c.handleDisconnect(msg.Payload)
 	case "list_sessions":
 		c.handleListSessions(ctx, msg.Payload)
+	case "profiles_list":
+		c.handleProfilesList(ctx, msg.Payload)
 	case "fs_list":
 		c.handleFSList(ctx, msg.Payload)
 	case "fs_mkdir":
