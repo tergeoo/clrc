@@ -40,6 +40,8 @@ type ChatSession struct {
 	Style string
 	// ConfigDir becomes CLAUDE_CONFIG_DIR for the child. Empty = CLI default.
 	ConfigDir string
+	// Launch is the full launch profile (ConfigDir mirrors Launch.ConfigDir).
+	Launch LaunchProfile
 
 	emit func(sessionID string, events []ChatEvent)
 	buf  *ChatBuffer
@@ -100,9 +102,10 @@ type ChatSession struct {
 
 // ChatOptions are the per-session spawn settings beyond id and cwd.
 type ChatOptions struct {
-	Model        string
-	Style        string
-	ConfigDir    string
+	Model string
+	Style string
+	// Launch sets the child's config dir and harness env.
+	Launch       LaunchProfile
 	HeaderPrefix string
 }
 
@@ -116,7 +119,8 @@ func NewChatSessionWithOptions(id, cwd string, opts ChatOptions, emit func(strin
 		Cwd:       cwd,
 		Model:     opts.Model,
 		Style:     opts.Style,
-		ConfigDir: opts.ConfigDir,
+		ConfigDir: opts.Launch.ConfigDir,
+		Launch:    opts.Launch,
 		Bin:       "claude",
 		emit:      emit,
 		buf:       NewChatBuffer(defaultChatBufferSize),
@@ -125,7 +129,7 @@ func NewChatSessionWithOptions(id, cwd string, opts ChatOptions, emit func(strin
 		// A conversation the CLI already wrote (an earlier agent process
 		// created it before a restart or reboot) must be resumed:
 		// --session-id for an existing id fails with "already in use".
-		started: transcriptExists(id, opts.ConfigDir),
+		started: transcriptExists(id, opts.Launch.ConfigDir),
 	}
 }
 
@@ -213,7 +217,7 @@ func (s *ChatSession) ensureProcess() error {
 	}
 	cmd := exec.Command(s.Bin, s.args()...)
 	cmd.Dir = s.Cwd
-	cmd.Env = childEnv(s.ConfigDir)
+	cmd.Env = childEnv(s.Launch)
 	// Its own process group so Interrupt/Close can signal the whole tree
 	// (e.g. a running Bash tool call), not just the immediate child.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

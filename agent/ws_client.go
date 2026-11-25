@@ -3,9 +3,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,6 +35,9 @@ type connectReq struct {
 	Profile string `json:"profile"`
 	// Style optionally overrides the agent's output style (chat only).
 	Style string `json:"style"`
+	// ProfileStrict forbids falling back to the agent default when Profile
+	// is not usable: the session is refused instead (saved projects).
+	ProfileStrict bool `json:"profile_strict"`
 }
 
 // registerReq is the payload of the agent's first message, "register".
@@ -156,6 +160,9 @@ type WSClient struct {
 	mu       sync.RWMutex
 	conn     *websocket.Conn
 	connMu   sync.Mutex
+	// textOut, when set, receives control messages instead of the relay
+	// connection (tests capture what the agent sends with it).
+	textOut func(ctx context.Context, msgType string, payload any)
 }
 
 func NewWSClient(cfg Config) *WSClient {
@@ -328,12 +335,17 @@ func (c *WSClient) handleConnect(ctx context.Context, payload json.RawMessage) {
 		command = "bash"
 	}
 
-	configDir, err := c.sessionConfigDir(req.Profile)
+	lp, err := c.resolveLaunch(req.Profile, req.ProfileStrict)
 	if err != nil {
+		if req.ProfileStrict {
+			log.Printf("Refusing PTY session %s: %v", req.SessionID, err)
+			c.sendSessionError(req.SessionID, err)
+			return
+		}
 		log.Printf("PTY session %s: %v; using the agent default", req.SessionID, err)
 	}
 
-	sess, err := NewPTYSession(req.SessionID, command, req.Cols, req.Rows, configDir, c.sendToRelay)
+	sess, err := NewPTYSession(req.SessionID, command, req.Cols, req.Rows, lp, c.sendToRelay)
 	if err != nil {
 		log.Printf("Failed to start PTY for session %s: %v", req.SessionID, err)
 		return
@@ -380,15 +392,20 @@ func (c *WSClient) handleChatConnect(req connectReq) {
 		return
 	}
 
-	opts := c.chatOptions(req)
+	opts, err := c.chatOptions(req)
+	if err != nil {
+		log.Printf("Refusing chat session %s: %v", req.SessionID, err)
+		c.sendChatError(req.SessionID, userMessage(err))
+		return
+	}
 	sess := NewChatSessionWithOptions(req.SessionID, resolvedCwd, opts, c.sendChatEvents)
 
 	c.mu.Lock()
 	c.chats[req.SessionID] = sess
 	c.mu.Unlock()
 
-	log.Printf("Chat session started: %s (cwd: %s, style: %q, config dir: %q)",
-		req.SessionID, resolvedCwd, opts.Style, opts.ConfigDir)
+	log.Printf("Chat session started: %s (cwd: %s, style: %q, profile: %q, config dir: %q)",
+		req.SessionID, resolvedCwd, opts.Style, opts.Launch.Name, opts.Launch.ConfigDir)
 
 	go func() {
 		<-sess.Done()
@@ -397,30 +414,15 @@ func (c *WSClient) handleChatConnect(req connectReq) {
 	}()
 }
 
-// sessionConfigDir resolves a connect's optional profile to a config dir.
-// No profile means the agent default; an invalid or missing profile also
-// falls back to it, with the reason returned for the caller to surface.
-func (c *WSClient) sessionConfigDir(profile string) (string, error) {
-	if profile == "" {
-		return c.cfg.ClaudeConfigDir, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return c.cfg.ClaudeConfigDir, fmt.Errorf("resolve home for profile %q: %w", profile, err)
-	}
-	dir, err := ResolveClaudeConfigDir(home, profile, "")
-	if err != nil {
-		return c.cfg.ClaudeConfigDir, err
-	}
-	return dir, nil
-}
-
 // chatOptions derives a chat session's spawn options from the connect
 // request and the agent config. A rejected profile or style falls back to
 // the agent default and is reported to the client as a non-fatal error.
-func (c *WSClient) chatOptions(req connectReq) ChatOptions {
-	configDir, err := c.sessionConfigDir(req.Profile)
+func (c *WSClient) chatOptions(req connectReq) (ChatOptions, error) {
+	lp, err := c.resolveLaunch(req.Profile, req.ProfileStrict)
 	if err != nil {
+		if req.ProfileStrict {
+			return ChatOptions{}, err
+		}
 		log.Printf("Chat session %s: %v; using the agent default", req.SessionID, err)
 		c.sendChatError(req.SessionID, "profile is not available on this Mac; using the default")
 	}
@@ -435,9 +437,28 @@ func (c *WSClient) chatOptions(req connectReq) ChatOptions {
 	return ChatOptions{
 		Model:        req.Model,
 		Style:        style,
-		ConfigDir:    configDir,
+		Launch:       lp,
 		HeaderPrefix: c.cfg.ExpectedHeaderPrefix,
+	}, nil
+}
+
+// sendSessionError reports a failure that belongs to one session; the relay
+// routes it to the client that owns the session.
+func (c *WSClient) sendSessionError(sessionID string, err error) {
+	c.sendTextMsg(context.Background(), "error", map[string]any{
+		"session_id": sessionID,
+		"message":    userMessage(err),
+	})
+}
+
+// userMessage is the text shown on the iPhone for err: the strict profile
+// message without its wrapped sentinel, else err's text.
+func userMessage(err error) string {
+	msg := err.Error()
+	if errors.Is(err, errProfileNotFound) {
+		msg = strings.TrimSuffix(msg, ": "+errProfileNotFound.Error())
 	}
+	return msg
 }
 
 // removeChatIfCurrent deletes the chats[id] entry only if it still points at
@@ -679,6 +700,10 @@ func (c *WSClient) sendToRelay(sessionID string, data []byte) {
 
 // sendTextMsg sends a JSON control message back to the relay.
 func (c *WSClient) sendTextMsg(ctx context.Context, msgType string, payload any) {
+	if c.textOut != nil {
+		c.textOut(ctx, msgType, payload)
+		return
+	}
 	payloadBytes, _ := json.Marshal(payload)
 	resp, _ := json.Marshal(Message{Type: msgType, Payload: payloadBytes})
 	c.connMu.Lock()

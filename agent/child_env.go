@@ -31,20 +31,56 @@ func validIdent(s string) bool {
 	return len(s) <= 64 && identPattern.MatchString(s)
 }
 
-// buildChildEnv returns base with nested-session variables removed, any
-// inherited CLRC_SESSION replaced, CLRC_SESSION=1 added, and
-// CLAUDE_CONFIG_DIR set when configDir is non-empty.
-func buildChildEnv(base []string, configDir string) []string {
-	env := make([]string, 0, len(base)+2)
+// LaunchProfile is how a session's claude is set up: its config dir and, for
+// a ~/harness profile, the env that `c <name>` would give it. The zero value
+// means no profile (the CLI default ~/.claude).
+type LaunchProfile struct {
+	// Name is the profile name; empty for the CLI default or an explicit
+	// CLRC_CLAUDE_CONFIG_DIR.
+	Name string
+	// ConfigDir becomes CLAUDE_CONFIG_DIR; empty means "do not set".
+	ConfigDir string
+	// Harness marks a synced ~/harness profile: the child also gets
+	// HARNESS_PROFILE=Name.
+	Harness bool
+	// Env holds KEY=value entries from the profile's harness env file.
+	Env []string
+}
+
+// reservedEnvKeys are always set by the agent; an env file cannot change them.
+var reservedEnvKeys = []string{envClaudeConfigDir, envClrcSession, envHarnessProfile}
+
+// buildChildEnv returns base with nested-session variables, CLRC_SESSION and
+// HARNESS_PROFILE removed, then lp.Env (overriding base entries with the
+// same key, minus reserved keys), then CLRC_SESSION=1, HARNESS_PROFILE for a
+// harness profile, and CLAUDE_CONFIG_DIR when lp has a config dir.
+func buildChildEnv(base []string, lp LaunchProfile) []string {
+	overridden := make(map[string]bool, len(lp.Env))
+	var extra []string
+	for _, kv := range lp.Env {
+		key, _, _ := strings.Cut(kv, "=")
+		if slices.Contains(reservedEnvKeys, key) {
+			continue
+		}
+		overridden[key] = true
+		extra = append(extra, kv)
+	}
+
+	env := make([]string, 0, len(base)+len(extra)+3)
 	for _, kv := range base {
-		if hasAnyPrefix(kv, nestedSessionPrefixes) || strings.HasPrefix(kv, envClrcSession+"=") {
+		key, _, _ := strings.Cut(kv, "=")
+		if hasAnyPrefix(kv, nestedSessionPrefixes) || key == envClrcSession || key == envHarnessProfile || overridden[key] {
 			continue
 		}
 		env = append(env, kv)
 	}
+	env = append(env, extra...)
 	env = append(env, envClrcSession+"=1")
-	if configDir != "" {
-		env = append(env, envClaudeConfigDir+"="+configDir)
+	if lp.Harness {
+		env = append(env, envHarnessProfile+"="+lp.Name)
+	}
+	if lp.ConfigDir != "" {
+		env = append(env, envClaudeConfigDir+"="+lp.ConfigDir)
 	}
 	return env
 }
@@ -59,8 +95,8 @@ func hasAnyPrefix(s string, prefixes []string) bool {
 }
 
 // childEnv is buildChildEnv over the agent's own environment.
-func childEnv(configDir string) []string {
-	return buildChildEnv(os.Environ(), configDir)
+func childEnv(lp LaunchProfile) []string {
+	return buildChildEnv(os.Environ(), lp)
 }
 
 // Terminal capabilities advertised to PTY children when the agent has none.
@@ -71,8 +107,8 @@ const (
 )
 
 // ptyEnv is childEnv for a terminal session: it also guarantees TERM.
-func ptyEnv(configDir string) []string {
-	return ensureTerm(childEnv(configDir))
+func ptyEnv(lp LaunchProfile) []string {
+	return ensureTerm(childEnv(lp))
 }
 
 // ensureTerm adds TERM and COLORTERM when env lacks them. A launchd daemon

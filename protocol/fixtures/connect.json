@@ -9,6 +9,7 @@
     "cwd": "~/startups/claude-orchestrator",
     "model": "opus",
     "profile": "personal",
-    "style": "clrc-chat"
+    "style": "clrc-chat",
+    "profile_strict": true
   }
 }

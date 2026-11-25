@@ -42,8 +42,8 @@ func TestChatOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewWSClient(cfg)
-			got := c.chatOptions(tt.req)
-			if got.ConfigDir != tt.wantDir || got.Style != tt.wantStyle || got.HeaderPrefix != "tergeo" {
+			got, _ := c.chatOptions(tt.req)
+			if got.Launch.ConfigDir != tt.wantDir || got.Style != tt.wantStyle || got.HeaderPrefix != "tergeo" {
 				t.Fatalf("options = %+v, want dir %q style %q", got, tt.wantDir, tt.wantStyle)
 			}
 		})

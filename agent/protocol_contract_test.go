@@ -68,7 +68,7 @@ func TestContractConnectDecodesEveryField(t *testing.T) {
 	var req connectReq
 	decodeStrict(t, msg.Payload, &req)
 	if req.SessionID == "" || req.Cols == 0 || req.Rows == 0 || req.Name == "" || req.Kind == "" ||
-		req.Cwd == "" || req.Model == "" || req.Profile == "" || req.Style == "" {
+		req.Cwd == "" || req.Model == "" || req.Profile == "" || req.Style == "" || !req.ProfileStrict {
 		t.Errorf("connect fixture left a field empty: %+v", req)
 	}
 }

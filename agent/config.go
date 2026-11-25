@@ -24,6 +24,10 @@ type Config struct {
 	// processes (from CLRC_CLAUDE_CONFIG_DIR or CLRC_PROFILE). Empty means
 	// the CLI default.
 	ClaudeConfigDir string
+	// Profile is CLRC_PROFILE when it selected ClaudeConfigDir (empty when an
+	// explicit CLRC_CLAUDE_CONFIG_DIR won). A harness profile here gets the
+	// full `c <name>` treatment for sessions that send no profile.
+	Profile string
 	// OutputStyle is passed as --settings {"outputStyle":...} to chat
 	// sessions. Empty means no --settings flag.
 	OutputStyle string

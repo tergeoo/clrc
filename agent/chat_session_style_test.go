@@ -73,7 +73,7 @@ func TestChatSessionSpawnEnvAndStyleSurviveRespawn(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_ENTRYPOINT", "cli")
 
 	emit, read := collectEvents()
-	s := NewChatSessionWithOptions("sid", t.TempDir(), ChatOptions{Style: "clrc-brief", ConfigDir: configDir, HeaderPrefix: "tergeo"}, emit)
+	s := NewChatSessionWithOptions("sid", t.TempDir(), ChatOptions{Style: "clrc-brief", Launch: LaunchProfile{ConfigDir: configDir}, HeaderPrefix: "tergeo"}, emit)
 	s.Bin = fakeClaude(t)
 	defer s.Close()
 
@@ -126,11 +126,11 @@ func TestChatSessionResumesExistingTranscript(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	existing := NewChatSessionWithOptions(id, "/Users/me/repo", ChatOptions{ConfigDir: configDir}, nil)
+	existing := NewChatSessionWithOptions(id, "/Users/me/repo", ChatOptions{Launch: LaunchProfile{ConfigDir: configDir}}, nil)
 	if args := strings.Join(existing.args(), " "); !strings.Contains(args, "--resume "+id) {
 		t.Errorf("existing transcript: args = %s", args)
 	}
-	fresh := NewChatSessionWithOptions("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "/Users/me/repo", ChatOptions{ConfigDir: configDir}, nil)
+	fresh := NewChatSessionWithOptions("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "/Users/me/repo", ChatOptions{Launch: LaunchProfile{ConfigDir: configDir}}, nil)
 	if args := strings.Join(fresh.args(), " "); !strings.Contains(args, "--session-id ") {
 		t.Errorf("new chat: args = %s", args)
 	}

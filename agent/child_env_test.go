@@ -37,7 +37,7 @@ func TestBuildChildEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildChildEnv(base, tt.configDir)
+			got := buildChildEnv(base, LaunchProfile{ConfigDir: tt.configDir})
 			if !slices.Equal(got, tt.want) {
 				t.Fatalf("env = %v\nwant  %v", got, tt.want)
 			}
