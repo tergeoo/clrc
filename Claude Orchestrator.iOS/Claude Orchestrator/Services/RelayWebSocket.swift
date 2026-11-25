@@ -37,6 +37,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
     // Callbacks for control events
     var onSessionReady: ((String) -> Void)?
     var onError: ((String) -> Void)?
+    /// An error about one session (e.g. a refused strict profile): (session id, message).
+    var onSessionError: ((String, String) -> Void)?
     /// Called each time the WS successfully connects and auth completes.
     var onConnect: (() -> Void)?
 
@@ -45,6 +47,10 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     // Pending sessions_list callbacks — keyed by request_id, consumed once (nil = timeout)
     private var pendingSessionListRequests: [String: ([RemoteSessionInfo]?) -> Void] = [:]
+
+    // Pending profiles_list callbacks — keyed by request_id, consumed once (nil = timeout)
+    private var pendingProfilesRequests: [String: (MacProfiles?) -> Void] = [:]
+    private static let profilesTimeout: Duration = .seconds(10)
 
     // Reconnect / watchdog
     private var reconnectTask: Task<Void, Never>?
@@ -252,8 +258,16 @@ final class RelayWebSocket: NSObject, ObservableObject {
                 pendingFSRequests.removeValue(forKey: requestID)?(payload)
             }
 
+        case "profiles_list_result":
+            if let requestID = payload["request_id"] as? String {
+                pendingProfilesRequests.removeValue(forKey: requestID)?(MacProfiles(payload: payload))
+            }
+
         case "error":
-            if let msg = payload["message"] as? String {
+            guard let msg = payload["message"] as? String else { break }
+            if let sessionID = payload["session_id"] as? String, !sessionID.isEmpty {
+                onSessionError?(sessionID, msg)
+            } else {
                 onError?(msg)
             }
 
@@ -304,7 +318,10 @@ final class RelayWebSocket: NSObject, ObservableObject {
 
     // MARK: - Send API
 
-    func sendConnect(agentID: String, sessionID: String, cols: Int, rows: Int, name: String? = nil) {
+    /// `profile` selects the Mac's Claude profile for a new PTY; with
+    /// `profileStrict` the Mac refuses the session instead of falling back.
+    func sendConnect(agentID: String, sessionID: String, cols: Int, rows: Int, name: String? = nil,
+                     profile: String? = nil, profileStrict: Bool = false) {
         var payload: [String: Any] = [
             "agent_id": agentID,
             "session_id": sessionID,
@@ -314,6 +331,8 @@ final class RelayWebSocket: NSObject, ObservableObject {
         if let name, !name.isEmpty {
             payload["name"] = name
         }
+        if let profile, !profile.isEmpty { payload["profile"] = profile }
+        if profileStrict { payload["profile_strict"] = true }
         sendJSON(["type": "connect", "payload": payload])
     }
 
@@ -348,7 +367,7 @@ final class RelayWebSocket: NSObject, ObservableObject {
     /// support ignores them, and absent fields mean the agent's defaults.
     func sendChatConnect(agentID: String, sessionID: String, cwd: String,
                          name: String? = nil, model: String? = nil,
-                         style: String? = nil, profile: String? = nil) {
+                         style: String? = nil, profile: String? = nil, profileStrict: Bool = false) {
         var payload: [String: Any] = [
             "agent_id": agentID,
             "session_id": sessionID,
@@ -359,6 +378,7 @@ final class RelayWebSocket: NSObject, ObservableObject {
         if let model, !model.isEmpty { payload["model"] = model }
         if let style, !style.isEmpty { payload["style"] = style }
         if let profile, !profile.isEmpty { payload["profile"] = profile }
+        if profileStrict { payload["profile_strict"] = true }
         sendJSON(["type": "connect", "payload": payload])
     }
 
@@ -485,6 +505,22 @@ final class RelayWebSocket: NSObject, ObservableObject {
             try? await Task.sleep(for: .seconds(3))
             guard let self else { return }
             self.pendingSessionListRequests.removeValue(forKey: requestID)?(nil)
+        }
+    }
+
+    /// Requests the Mac's Claude profiles. Completion runs exactly once: with
+    /// the list, or nil after a timeout (old agent or relay without support).
+    func requestProfiles(agentID: String, completion: @escaping (MacProfiles?) -> Void) {
+        let requestID = UUID().uuidString
+        pendingProfilesRequests[requestID] = completion
+        sendJSON([
+            "type": "profiles_list",
+            "payload": ["agent_id": agentID, "request_id": requestID] as [String: Any]
+        ])
+        Task { [weak self] in
+            try? await Task.sleep(for: Self.profilesTimeout)
+            guard let self else { return }
+            self.pendingProfilesRequests.removeValue(forKey: requestID)?(nil)
         }
     }
 
