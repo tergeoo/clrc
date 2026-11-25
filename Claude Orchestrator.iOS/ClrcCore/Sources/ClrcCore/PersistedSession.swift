@@ -23,6 +23,11 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
     /// Terminals: the command the session was started with, repeated on
     /// restart. nil for entries saved before it was recorded.
     public let command: String?
+    /// The profile the session was launched with; reattach, restore and
+    /// restart reuse it rather than the current Settings or project config.
+    public let profile: String?
+    /// Whether that profile was sent with `profile_strict`.
+    public let profileStrict: Bool
 
     /// What «Перезапустить» runs: the stored command; for older entries,
     /// Claude in their project folder (the previous behaviour).
@@ -35,7 +40,8 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
 
     public init(id: String, agentID: String, agentName: String,
                 customName: String, projectPath: String? = nil, createdAt: Date = Date(),
-                kind: Kind = .pty, cwd: String? = nil, command: String? = nil) {
+                kind: Kind = .pty, cwd: String? = nil, command: String? = nil,
+                profile: String? = nil, profileStrict: Bool = false) {
         self.id = id
         self.agentID = agentID
         self.agentName = agentName
@@ -45,10 +51,12 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         self.kind = kind
         self.cwd = cwd
         self.command = command
+        self.profile = profile
+        self.profileStrict = profileStrict
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd, command
+        case id, agentID, agentName, customName, projectPath, createdAt, kind, cwd, command, profile, profileStrict
     }
 
     public init(from decoder: Decoder) throws {
@@ -62,5 +70,7 @@ public struct PersistedSession: Codable, Equatable, Identifiable, Sendable {
         kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .pty
         cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
         command = try c.decodeIfPresent(String.self, forKey: .command)
+        profile = try c.decodeIfPresent(String.self, forKey: .profile)
+        profileStrict = try c.decodeIfPresent(Bool.self, forKey: .profileStrict) ?? false
     }
 }

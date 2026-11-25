@@ -4,7 +4,7 @@ import Foundation
 /// a chat session in one of the two display modes, or `claude` in a terminal.
 /// It is derived from two stored values so the Settings display picker and
 /// the sheet never disagree.
-public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
+public enum SessionLaunchMode: String, CaseIterable, Codable, Sendable, Identifiable {
     case chat
     case brief
     case terminal
@@ -53,8 +53,16 @@ public enum SessionLaunchMode: String, CaseIterable, Sendable, Identifiable {
     /// As above; `skipPermissions` adds `--dangerously-skip-permissions`
     /// («Без подтверждений (опасно)») before the prompt.
     public static func terminalCommand(cwd: String?, prompt: String?, skipPermissions: Bool) -> String {
+        terminalCommand(cwd: cwd, prompt: prompt, skipPermissions: skipPermissions, launchArgs: [])
+    }
+
+    /// As above, with a harness profile's `launch_args` after `claude`. The
+    /// skip-permissions flag is not repeated when the profile already has it.
+    public static func terminalCommand(cwd: String?, prompt: String?, skipPermissions: Bool,
+                                       launchArgs: [String]) -> String {
         var claude = "claude"
-        if skipPermissions { claude += " " + skipPermissionsFlag }
+        for arg in launchArgs { claude += " " + ShellCommand.argument(arg) }
+        if skipPermissions && !launchArgs.contains(skipPermissionsFlag) { claude += " " + skipPermissionsFlag }
         if let prompt, !prompt.isEmpty { claude += " " + ShellCommand.quoted(prompt) }
         guard let cwd, !cwd.isEmpty, cwd != "~" else { return claude }
         return "cd \(ShellCommand.quotedPath(cwd)) && \(claude)"
