@@ -13,6 +13,10 @@ import (
 )
 
 // AgentConn represents a connected Mac agent.
+// StatusAgentReplaced closes an agent connection whose ID was registered
+// again by a newer connection. The agent reconnects on it like on any drop.
+const StatusAgentReplaced websocket.StatusCode = 4001
+
 type AgentConn struct {
 	ID   string
 	Name string
@@ -111,7 +115,12 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case agent := <-h.registerAgent:
-			h.addAgent(agent)
+			if replaced := h.addAgent(agent); replaced != nil {
+				// The relay no longer routes to the old socket; close it so
+				// that agent reconnects instead of believing it is online.
+				log.Printf("Agent %s connected again; closing its previous connection", agent.ID)
+				go replaced.conn.Close(StatusAgentReplaced, "replaced by a newer connection")
+			}
 			log.Printf("Agent registered: %s (%s), version %q", agent.Name, agent.ID, agent.Version)
 			h.broadcastAgentList()
 
@@ -152,11 +161,17 @@ func (h *Hub) Run() {
 	}
 }
 
-// addAgent registers conn under its ID, replacing any older connection.
-func (h *Hub) addAgent(conn *AgentConn) {
+// addAgent registers conn under its ID, replacing any older connection,
+// and returns the replaced connection (nil if there was none).
+func (h *Hub) addAgent(conn *AgentConn) *AgentConn {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	old := h.agents[conn.ID]
 	h.agents[conn.ID] = conn
+	if old == conn {
+		return nil
+	}
+	return old
 }
 
 // removeAgent drops the sessions routed through conn and, if conn is still
