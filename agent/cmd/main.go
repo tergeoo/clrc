@@ -54,6 +54,15 @@ func processRunning(pid int) bool {
 	return p.Signal(syscall.Signal(0)) == nil
 }
 
+// checkNoDaemon refuses a foreground run while the daemon is running: both
+// would register the same agent ID, and the relay keeps only one of them.
+func checkNoDaemon() error {
+	if pid := readPID(); processRunning(pid) {
+		return fmt.Errorf("clrc is already running in the background (PID %d); use clrc restart, clrc status or clrc logs", pid)
+	}
+	return nil
+}
+
 func cmdStart() {
 	if pid := readPID(); processRunning(pid) {
 		fmt.Printf("Already running (PID %d)\n", pid)
@@ -433,7 +442,13 @@ func main() {
 		cmdConfig()
 	case "version", "--version", "-v":
 		fmt.Println(strings.TrimPrefix(version, "v"))
-	case "_run", "": // internal daemon process or foreground run
+	case "_run": // internal daemon process
+		run()
+	case "": // foreground run
+		if err := checkNoDaemon(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		run()
 	default:
 		fmt.Fprintf(os.Stderr, "clrc — Claude Remote Control\n\n")
